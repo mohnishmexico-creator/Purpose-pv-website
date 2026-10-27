@@ -1,0 +1,7 @@
+name = "floral-dawn-d72f"
+compatibility_date = "2026-09-03"
+preview_urls = true
+previews = { }
+
+[assets]
+directory = "./"
