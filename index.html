@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#f6f1e8">
 <meta name="description" content="Purpose PV is an Indian restaurant in Versalles, Puerto Vallarta, by Chef Mohnish Malhotra from New Delhi. Discover Indian cuisine, reserve a table, and visit us at Roma 193.">
 <link rel="canonical" href="https://purposepv.com/">
+<link rel="alternate" hreflang="en" href="https://purposepv.com/">
+<link rel="alternate" hreflang="es" href="https://purposepv.com/es/">
+<link rel="alternate" hreflang="x-default" href="https://purposepv.com/">
 <meta name="robots" content="index,follow">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://purposepv.com/">
@@ -25,6 +28,12 @@
   "servesCuisine": "Indian",
   "telephone": "+52 322 109 0525",
   "email": "info@purposepv.com",
+  "hasMenu": "https://purposepv.com/PurposePV_Menu.pdf",
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": 20.6387306,
+    "longitude": -105.2298717
+  },
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "Roma 193",
@@ -42,6 +51,7 @@
   ],
   "sameAs": [
     "https://instagram.com/purpose.pv",
+    "https://www.facebook.com/people/Purpose-PV/61594179080964/",
     "https://maps.app.goo.gl/U3smLrJoR8bsmWuo6"
   ],
   "acceptsReservations": "https://tableagent.com/puerto-vallarta/purpose-pv/"
@@ -85,6 +95,6 @@ function setLanguage(lang){
   showMenu(lang);
   try{history.replaceState(null,'',lang==='es'?'#lang=es':'#lang=en')}catch(e){}
 }
-if(location.hash==='#lang=es')setLanguage('es');
+if(location.pathname.indexOf('/es/')===0 || location.hash==='#lang=es')setLanguage('es');
 </script>
 </body></html>
