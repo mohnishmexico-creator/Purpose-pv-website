@@ -6,4 +6,6 @@
   <url><loc>https://purposepv.com/menu-es</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
   <url><loc>https://purposepv.com/drinks</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://purposepv.com/bebidas</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://purposepv.com/private-events</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://purposepv.com/eventos-privados</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
 </urlset>
