@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reservations | Purpose PV · Indian Restaurant in Puerto Vallarta</title>
+<meta name="description" content="Reserve your table at Purpose PV, Puerto Vallarta’s Indian restaurant in Versalles. Check live availability and book online.">
+<link rel="canonical" href="https://purposepv.com/reservations">
+<link rel="alternate" hreflang="en" href="https://purposepv.com/reservations">
+<link rel="alternate" hreflang="es" href="https://purposepv.com/reservations">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#f6f1e8">
+<style>
+:root{--ivory:#f6f1e8;--paper:#fbf8f2;--ink:#292923;--muted:#6c685f;--gold:#9a8053;--line:#d9d0c1;--green:#465548}
+*{box-sizing:border-box}body{margin:0;background:var(--ivory);color:var(--ink);font-family:Georgia,'Times New Roman',serif;line-height:1.55}a{color:inherit}.top{background:var(--green);color:#fff;text-align:center;padding:9px 16px;font:11px Arial,sans-serif;letter-spacing:.13em;text-transform:uppercase}.wrap{max-width:900px;margin:auto;padding:30px 18px 60px}.brand{text-align:center;font-size:28px;letter-spacing:.22em}.brand small{display:block;font:10px Arial,sans-serif;letter-spacing:.28em}.language{text-align:center;margin:18px auto}.language button{border:1px solid var(--line);background:transparent;padding:8px 12px;color:var(--ink);cursor:pointer}.language button[aria-pressed=true]{background:var(--green);color:white;border-color:var(--green)}h1{text-align:center;font-size:clamp(30px,5vw,44px);font-weight:normal;margin:18px 0 8px}.intro{text-align:center;color:var(--muted);max-width:650px;margin:0 auto 26px}.booking{background:var(--paper);border:1px solid var(--line);padding:14px;box-shadow:0 6px 24px rgba(41,41,35,.06)}.booking iframe{display:block;width:100%;height:736px;border:0;min-width:375px}.booking-scroll{max-width:100%;overflow-x:auto}.fallback{text-align:center;color:var(--muted);font:13px Arial,sans-serif;margin:18px auto}.fallback a{color:var(--green);text-decoration:underline}.back{text-align:center;margin-top:26px;font:11px Arial,sans-serif;letter-spacing:.1em;text-transform:uppercase}.back a{margin:0 10px;text-decoration:none;border-bottom:1px solid var(--gold);padding-bottom:4px}@media(max-width:480px){.wrap{padding:22px 10px 45px}.booking{padding:8px}.booking iframe{height:736px}}
+</style>
+</head>
+<body>
+<div class="top" data-en="Purpose PV · Indian Cuisine · Puerto Vallarta" data-es="Purpose PV · Cocina india · Puerto Vallarta">Purpose PV · Indian Cuisine · Puerto Vallarta</div>
+<main class="wrap">
+<div class="brand">PURPOSE<small>PUERTO VALLARTA</small></div>
+<div class="language" aria-label="Choose language"><button type="button" id="lang-en" aria-pressed="true" onclick="setLanguage('en')">EN</button><button type="button" id="lang-es" aria-pressed="false" onclick="setLanguage('es')">ES</button></div>
+<h1 data-en="Reserve a Table" data-es="Reserva una mesa">Reserve a Table</h1>
+<p class="intro" data-en="Choose your date, time and party size using our live reservation system. We look forward to welcoming you." data-es="Elige la fecha, la hora y el número de personas en nuestro sistema de reservaciones. Será un placer recibirte.">Choose your date, time and party size using our live reservation system. We look forward to welcoming you.</p>
+<div class="booking"><div class="booking-scroll">
+<iframe src="https://tableagent.com/iframe/purpose-pv/" title="Make a reservation at Purpose PV" width="100%" height="736" style="border:0;width:100%;min-width:375px;height:736px;" sandbox="allow-forms allow-modals allow-same-origin allow-scripts allow-top-navigation-by-user-activation"></iframe>
+</div></div>
+<p class="fallback"><span data-en="Having trouble with the form?" data-es="¿Tienes problemas con el formulario?">Having trouble with the form?</span> <a href="https://tableagent.com/puerto-vallarta/purpose-pv/table-search/" target="_blank" rel="noopener" data-en="Open the booking page" data-es="Abrir la página de reservaciones">Open the booking page</a>.</p>
+<div class="back"><a href="/" data-en="Home" data-es="Inicio">Home</a><a href="/menu" data-en="Menu" data-es="Menú">Menu</a><a href="https://tableagent.com/puerto-vallarta/purpose-pv/" target="_blank" rel="noopener" data-en="TableAgent profile" data-es="Perfil de TableAgent">TableAgent profile</a></div>
+</main>
+<script>
+function setLanguage(lang){document.documentElement.lang=lang;document.querySelectorAll('[data-en]').forEach(el=>{const value=el.getAttribute('data-'+lang);if(value!==null)el.textContent=value});document.getElementById('lang-en').setAttribute('aria-pressed',lang==='en'?'true':'false');document.getElementById('lang-es').setAttribute('aria-pressed',lang==='es'?'true':'false')}
+</script>
+</body></html>
