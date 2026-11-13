@@ -16,13 +16,15 @@ This branch is isolated from `main`. It does not change the live website, live r
 | 9 | 6 |
 | **Total** | **36** |
 
-The confirmed table capacities total 36 seats. No table-combination rules are assumed yet.
+No table-combination rules are assumed.
 
-## Agreed operating rules
+## Reservation and closing rules
 - Nine tables (IDs 1–9).
-- Parties of 1–3: 90-minute seating.
-- Parties of 4–8: 120-minute seating.
-- Restaurant hours: Tuesday–Sunday, 17:00–22:00; closed Mondays.
+- Standard arrivals: parties of 1–3 receive 90 minutes; parties of 4–8 receive 120 minutes.
+- Final arrival at 9:00 pm: parties of 1–3 receive 60 minutes; parties of 4–8 receive 90 minutes.
+- Last kitchen order: 9:30 pm. Display this note clearly in the guest booking flow and confirmation.
+- Restaurant closes at 10:00 pm; all seatings must finish by then.
+- Tuesday–Sunday, 5:00–9:00 pm arrival slots; closed Mondays.
 - Availability is calculated from table occupancy intervals.
 - Guest booking interface is English/Spanish.
 - Staff workflow will support phone bookings, walk-ins, seating extensions, reassignment and release.
@@ -39,8 +41,8 @@ The confirmed table capacities total 36 seats. No table-combination rules are as
 2. Apply migrations in order: `0001_initial.sql`, then `0002_conflict_guards.sql`.
 3. Bind D1 to a dedicated preview Worker, not the live site.
 4. Configure `ADMIN_TOKEN` as a Worker secret; never commit it.
-5. Test booking, cancellation, conflict handling and staff operations with fictional records.
-6. Complete a security and concurrency review before considering production.
+5. Test standard and 9:00 pm durations, booking conflicts, cancellation and staff operations using fictional records.
+6. Complete security and concurrency review before production.
 
 ## Safety requirements
 - Staff endpoints require authentication.
