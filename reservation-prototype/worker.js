@@ -7,8 +7,8 @@ function addMinutes(date,time,minutes){
   return {date:`${dt.getUTCFullYear()}-${pad(dt.getUTCMonth()+1)}-${pad(dt.getUTCDate())}`,
     time:`${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`};
 }
-function validDate(s){return /^\\d{4}-\\d{2}-\\d{2}$/.test(s||"") && !Number.isNaN(Date.parse(s+"T12:00:00Z"));}
-function validTime(s){return /^([01]\\d|2[0-3]):[0-5]\\d$/.test(s||"");}
+function validDate(s){return /^\d{4}-\d{2}-\d{2}$/.test(s||"") && !Number.isNaN(Date.parse(s+"T12:00:00Z"));}
+function validTime(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||"");}
 function seatingDuration(party,time){
   if(time==="21:00") return party<=3?60:90;
   return party<=3?90:120;
