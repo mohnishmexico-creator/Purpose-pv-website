@@ -1,8 +1,4 @@
-/**
- * Purpose PV reservation API prototype.
- * Test-only. Bind D1 as DB and configure ADMIN_TOKEN as a Worker secret.
- * Never deploy this Worker to production without security review and testing.
- */
+/** Purpose PV reservation API prototype. Test-only. */
 const ACTIVE = "'requested','confirmed','seated'";
 const pad = n => String(n).padStart(2,"0");
 function addMinutes(date,time,minutes){
@@ -13,6 +9,10 @@ function addMinutes(date,time,minutes){
 }
 function validDate(s){return /^\\d{4}-\\d{2}-\\d{2}$/.test(s||"") && !Number.isNaN(Date.parse(s+"T12:00:00Z"));}
 function validTime(s){return /^([01]\\d|2[0-3]):[0-5]\\d$/.test(s||"");}
+function seatingDuration(party,time){
+  if(time==="21:00") return party<=3?60:90;
+  return party<=3?90:120;
+}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{
   "content-type":"application/json; charset=utf-8","cache-control":"no-store",
   "access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PATCH,OPTIONS",
@@ -50,18 +50,18 @@ export default {
     if(!validDate(date)||!Number.isInteger(party)||party<1||party>8)
       return json({error:"Provide a valid date and party_size from 1 to 8."},400);
     const weekday=new Date(date+"T12:00:00Z").getUTCDay();
-    if(weekday===1) return json({date,party_size:party,duration_minutes:party<=3?90:120,available_times:[],message:"Closed Mondays."});
-    const duration=party<=3?90:120;
+    if(weekday===1) return json({date,party_size:party,available_times:[],message:"Closed Mondays."});
     const eligible=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 AND capacity>=? ORDER BY capacity,id").bind(party).all();
     const all=await assignedBookings(env.DB,date,date);
-    const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30"];
+    const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00"];
     const available_times=times.filter(t=>{
-      const end=addMinutes(date,t,duration);
+      const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
       if(end.date!==date || end.time>"22:00") return false;
       return eligible.results.some(table=>!all.some(b=>b.table_id===table.id &&
         overlaps(date,t,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
     });
-    return json({date,party_size:party,duration_minutes:duration,available_times});
+    return json({date,party_size:party,available_times,kitchen_last_order:"21:30",
+      note:"Last kitchen order at 9:30 pm. 9:00 pm arrival: 60-minute seating for 1–3 guests; 90 minutes for 4–8 guests."});
   }
   if(url.pathname==="/api/reservations" && req.method==="POST"){
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
@@ -72,9 +72,11 @@ export default {
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
     if(new Date(reservation_date+"T12:00:00Z").getUTCDay()===1)
       return json({error:"Purpose is closed on Mondays."},400);
-    const duration=party<=3?90:120,end=addMinutes(reservation_date,start_time,duration);
-    if(end.date!==reservation_date||end.time>"22:00"||start_time<"17:00")
-      return json({error:"Choose an arrival time that allows the full seating period before closing."},400);
+    if(start_time<"17:00"||start_time>"21:00"||(start_time==="21:00"&&!["21:00"].includes(start_time)))
+      return json({error:"Choose an arrival time between 5:00 pm and 9:00 pm."},400);
+    const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
+    if(end.date!==reservation_date||end.time>"22:00")
+      return json({error:"Choose an arrival time that allows the applicable seating period before closing."},400);
     const eligible=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 AND capacity>=? ORDER BY capacity,id").bind(party).all();
     if(!eligible.results.length) return json({error:"No configured table can seat this party yet. Please contact Purpose."},409);
     const all=await assignedBookings(env.DB,reservation_date,end.date);
@@ -83,8 +85,6 @@ export default {
     if(!free) return json({error:"No table is available at that time. Please choose another time."},409);
     const id=crypto.randomUUID(),code=crypto.randomUUID().slice(0,8).toUpperCase();
     try{
-      // D1 batch is transactional; database trigger in migration 0002 is the final
-      // authority that rejects an overlapping assignment even if two requests race.
       await env.DB.batch([
         env.DB.prepare(`INSERT INTO reservations
           (id,confirmation_code,guest_name,phone,email,party_size,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language,special_requests)
@@ -96,7 +96,8 @@ export default {
       if(String(e).includes("TABLE_TIME_CONFLICT")) return json({error:"That table was just booked. Please choose another time."},409);
       return json({error:"Booking could not be saved. Please try again."},500);
     }
-    return json({ok:true,confirmation_code:code,date:reservation_date,start_time,end_time:end.time,duration_minutes:duration},201);
+    return json({ok:true,confirmation_code:code,date:reservation_date,start_time,end_time:end.time,duration_minutes:duration,
+      kitchen_last_order:"21:30",guest_note:"Last kitchen order at 9:30 pm."},201);
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
     if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
