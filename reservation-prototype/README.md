@@ -22,8 +22,8 @@ No table-combination rules are assumed.
 - Nine tables (IDs 1–9).
 - Standard arrivals: parties of 1–3 receive 90 minutes; parties of 4–8 receive 120 minutes.
 - Final arrival at 9:00 pm: parties of 1–3 receive 60 minutes; parties of 4–8 receive 90 minutes.
-- Last kitchen order: 9:30 pm. Display this note clearly in the guest booking flow and confirmation.
-- Restaurant closes at 10:00 pm; all seatings must finish by then.
+- Last kitchen order: 9:30 pm. Display this note clearly in the guest booking flow and confirmation; do not display a required departure time.
+- The 9:00 pm final seating is not presented to guests with a departure deadline. Parties of 4–8 may remain for their 90-minute seating, ending at 10:30 pm.
 - Tuesday–Sunday, 5:00–9:00 pm arrival slots; closed Mondays.
 - Availability is calculated from table occupancy intervals.
 - Guest booking interface is English/Spanish.
