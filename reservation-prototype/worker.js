@@ -56,7 +56,7 @@ export default {
     const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00"];
     const available_times=times.filter(t=>{
       const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
-      if(end.date!==date || end.time>"22:00") return false;
+      if(end.date!==date || (t!=="21:00" && end.time>"22:00")) return false;
       return eligible.results.some(table=>!all.some(b=>b.table_id===table.id &&
         overlaps(date,t,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
     });
@@ -72,11 +72,11 @@ export default {
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
     if(new Date(reservation_date+"T12:00:00Z").getUTCDay()===1)
       return json({error:"Purpose is closed on Mondays."},400);
-    if(start_time<"17:00"||start_time>"21:00"||(start_time==="21:00"&&!["21:00"].includes(start_time)))
+    if(start_time<"17:00"||start_time>"21:00")
       return json({error:"Choose an arrival time between 5:00 pm and 9:00 pm."},400);
     const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
-    if(end.date!==reservation_date||end.time>"22:00")
-      return json({error:"Choose an arrival time that allows the applicable seating period before closing."},400);
+    if(end.date!==reservation_date||(start_time!=="21:00"&&end.time>"22:00"))
+      return json({error:"Choose an available arrival time."},400);
     const eligible=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 AND capacity>=? ORDER BY capacity,id").bind(party).all();
     if(!eligible.results.length) return json({error:"No configured table can seat this party yet. Please contact Purpose."},409);
     const all=await assignedBookings(env.DB,reservation_date,end.date);
@@ -97,7 +97,7 @@ export default {
       return json({error:"Booking could not be saved. Please try again."},500);
     }
     return json({ok:true,confirmation_code:code,date:reservation_date,start_time,end_time:end.time,duration_minutes:duration,
-      kitchen_last_order:"21:30",guest_note:"Last kitchen order at 9:30 pm."},201);
+      kitchen_last_order:"21:30",guest_note:language==="es"?"Última orden de cocina a las 9:30 pm.":"Last kitchen order at 9:30 pm."},201);
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
     if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
