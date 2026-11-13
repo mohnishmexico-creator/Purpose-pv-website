@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS reservations (
   party_size INTEGER NOT NULL CHECK (party_size BETWEEN 1 AND 8),
   reservation_date TEXT NOT NULL,
   start_time TEXT NOT NULL,
-  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (90,120)),
+  duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (60,90,120)),
+  thali_count INTEGER NOT NULL DEFAULT 0 CHECK (thali_count BETWEEN 0 AND party_size),
   end_time TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'confirmed'
     CHECK (status IN ('requested','confirmed','seated','completed','cancelled','no_show')),
