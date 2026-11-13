@@ -1,36 +1,49 @@
 # Purpose PV — reservation system prototype
 
-This branch is isolated from `main`. It does not change the live website, the live reservation page, or TableAgent.
+This branch is isolated from `main`. It does not change the live website, live reservation page, or TableAgent.
+
+## Owner-confirmed floor plan
+| Table | Seats |
+|---|---:|
+| 1 | 8 |
+| 2 | 4 |
+| 3 | 4 |
+| 4 | 2 |
+| 5 | 2 |
+| 6 | 4 |
+| 7 | 2 |
+| 8 | 4 |
+| 9 | 2 |
+| **Total** | **32** |
+
+The confirmed table capacities total 32 seats. No table-combination rules are assumed yet.
 
 ## Agreed operating rules
 - Nine tables (IDs 1–9).
 - Parties of 1–3: 90-minute seating.
-- Parties of 4 and above: 120-minute seating.
-- Reservation availability is based on table occupancy intervals, not just matching start times.
-- Staff can add phone bookings and walk-ins, extend a seating, reassign tables, and release tables.
-- Guest-facing flow is bilingual (English/Spanish).
-
-## Important floor-plan item
-The final seat capacity for each of the nine tables is not yet confirmed in the current project record. The migration creates tables 1–9 with NULL capacities on purpose. Do not enable automatic assignment until those capacities and any permitted table combinations are confirmed.
+- Parties of 4–8: 120-minute seating.
+- Restaurant hours: Tuesday–Sunday, 17:00–22:00; closed Mondays.
+- Availability is calculated from table occupancy intervals.
+- Guest booking interface is English/Spanish.
+- Staff workflow will support phone bookings, walk-ins, seating extensions, reassignment and release.
 
 ## Planned architecture
-- Cloudflare Pages for the website front end.
+- Existing Cloudflare Pages site for front end, only after approval.
 - Cloudflare Worker for the reservation API.
-- Cloudflare D1 for reservation records and table assignments.
-- All date/time input is restaurant-local Puerto Vallarta time.
-- No customer data or live booking is present in this prototype.
+- Separate Cloudflare D1 test database for records and table assignments.
+- Puerto Vallarta local date/time handling.
+- No real customer data or live bookings in this prototype.
 
-## D1 setup (not yet performed)
-1. Create a separate D1 database for testing.
-2. Apply `migrations/0001_initial.sql`.
-3. Add the D1 binding to a dedicated preview Worker configuration.
-4. Configure an admin secret as a Worker secret; never commit it.
-5. Test booking conflicts, cancellation, seating extension, and walk-ins using fictional records.
-6. Only after owner approval, plan a separate production migration.
+## Test setup (not performed)
+1. Create a dedicated D1 test database.
+2. Apply migrations in order: `0001_initial.sql`, then `0002_conflict_guards.sql`.
+3. Bind D1 to a dedicated preview Worker, not the live site.
+4. Configure `ADMIN_TOKEN` as a Worker secret; never commit it.
+5. Test booking, cancellation, conflict handling and staff operations with fictional records.
+6. Complete a security and concurrency review before considering production.
 
-## Safety / correctness rules
-- Never expose the staff API without authentication.
-- Create reservations and table assignments atomically.
-- Reject overlapping table intervals.
-- Cancelled and completed reservations do not block future availability.
-- Re-check availability at write time to prevent two guests taking the same table.
+## Safety requirements
+- Staff endpoints require authentication.
+- Database trigger rejects overlapping table assignments.
+- Cancelled, completed and no-show reservations do not block availability.
+- No deployment or live customer bookings without explicit owner approval.
