@@ -1,19 +1,19 @@
 -- Purpose PV reservation system prototype
--- Apply to a dedicated Cloudflare D1 database only after review.
+-- Apply only to a dedicated Cloudflare D1 test database.
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS dining_tables (
   id INTEGER PRIMARY KEY CHECK (id BETWEEN 1 AND 9),
-  capacity INTEGER CHECK (capacity BETWEEN 1 AND 12),
+  capacity INTEGER NOT NULL CHECK (capacity BETWEEN 1 AND 12),
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
   staff_notes TEXT
 );
 
--- Capacities intentionally left NULL until the final nine-table floor plan is confirmed.
+-- Owner-confirmed floor plan: 32 seats total.
 INSERT OR IGNORE INTO dining_tables (id, capacity, is_active) VALUES
-  (1, NULL, 1), (2, NULL, 1), (3, NULL, 1),
-  (4, NULL, 1), (5, NULL, 1), (6, NULL, 1),
-  (7, NULL, 1), (8, NULL, 1), (9, NULL, 1);
+  (1, 8, 1), (2, 4, 1), (3, 4, 1),
+  (4, 2, 1), (5, 2, 1), (6, 4, 1),
+  (7, 2, 1), (8, 4, 1), (9, 2, 1);
 
 CREATE TABLE IF NOT EXISTS reservations (
   id TEXT PRIMARY KEY,
@@ -21,11 +21,11 @@ CREATE TABLE IF NOT EXISTS reservations (
   guest_name TEXT NOT NULL,
   phone TEXT NOT NULL,
   email TEXT,
-  party_size INTEGER NOT NULL CHECK (party_size BETWEEN 1 AND 12),
-  reservation_date TEXT NOT NULL, -- YYYY-MM-DD in Puerto Vallarta local time
-  start_time TEXT NOT NULL,        -- HH:MM local time
+  party_size INTEGER NOT NULL CHECK (party_size BETWEEN 1 AND 8),
+  reservation_date TEXT NOT NULL,
+  start_time TEXT NOT NULL,
   duration_minutes INTEGER NOT NULL CHECK (duration_minutes IN (90,120)),
-  end_time TEXT NOT NULL,          -- calculated local HH:MM, may cross midnight
+  end_time TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'confirmed'
     CHECK (status IN ('requested','confirmed','seated','completed','cancelled','no_show')),
   source TEXT NOT NULL DEFAULT 'online'
@@ -43,9 +43,6 @@ CREATE TABLE IF NOT EXISTS reservation_tables (
   PRIMARY KEY (reservation_id, table_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_reservations_date_time
-  ON reservations(reservation_date, start_time);
-CREATE INDEX IF NOT EXISTS idx_reservations_status
-  ON reservations(status);
-CREATE INDEX IF NOT EXISTS idx_reservation_tables_table
-  ON reservation_tables(table_id);
+CREATE INDEX IF NOT EXISTS idx_reservations_date_time ON reservations(reservation_date, start_time);
+CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status);
+CREATE INDEX IF NOT EXISTS idx_reservation_tables_table ON reservation_tables(table_id);
