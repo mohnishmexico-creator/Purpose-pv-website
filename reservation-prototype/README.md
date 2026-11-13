@@ -9,14 +9,14 @@ This branch is isolated from `main`. It does not change the live website, live r
 | 2 | 4 |
 | 3 | 4 |
 | 4 | 2 |
-| 5 | 2 |
-| 6 | 4 |
-| 7 | 2 |
-| 8 | 4 |
-| 9 | 2 |
-| **Total** | **32** |
+| 5 | 4 |
+| 6 | 2 |
+| 7 | 4 |
+| 8 | 2 |
+| 9 | 6 |
+| **Total** | **36** |
 
-The confirmed table capacities total 32 seats. No table-combination rules are assumed yet.
+The confirmed table capacities total 36 seats. No table-combination rules are assumed yet.
 
 ## Agreed operating rules
 - Nine tables (IDs 1–9).
