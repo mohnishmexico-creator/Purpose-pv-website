@@ -9,11 +9,11 @@ CREATE TABLE IF NOT EXISTS dining_tables (
   staff_notes TEXT
 );
 
--- Owner-confirmed floor plan: 32 seats total.
+-- Owner-confirmed floor plan: 36 seats total.
 INSERT OR IGNORE INTO dining_tables (id, capacity, is_active) VALUES
   (1, 8, 1), (2, 4, 1), (3, 4, 1),
-  (4, 2, 1), (5, 2, 1), (6, 4, 1),
-  (7, 2, 1), (8, 4, 1), (9, 2, 1);
+  (4, 2, 1), (5, 4, 1), (6, 2, 1),
+  (7, 4, 1), (8, 2, 1), (9, 6, 1);
 
 CREATE TABLE IF NOT EXISTS reservations (
   id TEXT PRIMARY KEY,
