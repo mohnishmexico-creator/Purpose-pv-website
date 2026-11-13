@@ -33,7 +33,14 @@ footer{text-align:center;color:var(--muted);padding:16px;font-size:12px}
 <div class="grid">
 <div class="field"><label id="dateLabel">Date</label><input id="date" type="date" required></div>
 <div class="field"><label id="partyLabel">Number of guests</label><select id="party"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
-<div class="field" id="thaliField" hidden><label id="thaliLabel">Thali guests (remaining guests à la carte)</label><select id="thaliCount"></select></div>
+<div class="field" id="thaliField" hidden>
+  <div style="font-weight:700;margin-bottom:8px">Thursday dining choice · Choose for your party</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div><label for="thaliCount" style="font-weight:700">Thali</label><select id="thaliCount"></select><small>Number of guests having Thali</small></div>
+    <div><label for="alacarteCount" style="font-weight:700">À la carte</label><select id="alacarteCount"></select><small>Number of guests ordering from the regular menu</small></div>
+  </div>
+  <small id="mealChoiceNote" style="display:block;margin-top:8px">The two counts must add up to your total party size. Thali availability is limited to 12 guests per hour.</small>
+</div>
 <div class="field"><label id="timeLabel">Arrival time</label><select id="time"><option value="17:00">5:00 pm</option><option value="17:30">5:30 pm</option><option value="18:00">6:00 pm</option><option value="18:30">6:30 pm</option><option value="19:00">7:00 pm</option><option value="19:30">7:30 pm</option><option value="20:00">8:00 pm</option><option value="20:30">8:30 pm</option><option value="21:00">9:00 pm</option></select></div>
 <div class="field"><label id="nameLabel">Name</label><input id="name" required placeholder="Your name"></div>
 <div class="field"><label id="phoneLabel">Phone / WhatsApp</label><input id="phone" required placeholder="+52 ..."></div>
@@ -58,10 +65,15 @@ const caps=[8,4,4,2,4,2,4,2,6];
 function t(k){return copy[lang][k]}
 function updateThaliField(){
  const d=document.getElementById('date').value,p=Number(document.getElementById('party').value);
- const thursday=d&&new Date(d+'T12:00:00').getDay()===4,field=document.getElementById('thaliField'),sel=document.getElementById('thaliCount');
- field.hidden=!thursday;const old=Number(sel.value||0);
- sel.innerHTML='<option value="0">0 · All à la carte</option>'+Array.from({length:p},(_,i)=>'<option value="'+(i+1)+'">'+(i+1)+' Thali'+(i?'s':'')+'</option>').join('');
- sel.value=String(Math.min(old,p));
+ const thursday=d&&new Date(d+'T12:00:00').getDay()===4,field=document.getElementById('thaliField');
+ const thali=document.getElementById('thaliCount'),ala=document.getElementById('alacarteCount');
+ field.hidden=!thursday;
+ const oldThali=Math.min(Number(thali.value||0),p);
+ const options=n=>Array.from({length:p+1},(_,i)=>'<option value="'+i+'">'+i+'</option>').join('');
+ thali.innerHTML=options(p);ala.innerHTML=options(p);
+ thali.value=String(oldThali);ala.value=String(p-oldThali);
+ thali.onchange=()=>{ala.value=String(p-Number(thali.value));};
+ ala.onchange=()=>{thali.value=String(p-Number(ala.value));};
 }
 document.getElementById('date').addEventListener('change',updateThaliField);
 document.getElementById('party').addEventListener('change',updateThaliField);
@@ -70,8 +82,8 @@ function showView(v){document.getElementById('guestView').hidden=v!=='guest';doc
 function render(){document.getElementById('bookingRows').innerHTML=bookings.map((b,i)=>'<tr><td>'+b.time+'</td><td>'+b.name+'</td><td>'+b.party+'</td><td>'+b.table+'</td><td>'+b.status+'</td><td><button class="secondary" onclick="changeStatus('+i+')">'+(b.status==='Confirmed'?t('seat'):t('done'))+'</button></td></tr>').join('');document.getElementById('floor').innerHTML=caps.map((c,i)=>'<div class="tablecard"><strong>'+t('table')+' '+(i+1)+'</strong><span>'+c+' '+t('seats')+'</span></div>').join('')}
 function changeStatus(i){bookings[i].status=bookings[i].status==='Confirmed'?'Seated':bookings[i].status==='Seated'?'Completed':'Confirmed';render()}
 function addSample(){bookings.push({time:'20:00',name:t('walkin'),party:2,table:6,status:'Confirmed'});render()}
-document.getElementById('bookingForm').addEventListener('submit',e=>{e.preventDefault();const d=document.getElementById('date').value,p=Number(document.getElementById('party').value),tm=document.getElementById('time').value,n=document.getElementById('name').value.trim(),ph=document.getElementById('phone').value.trim();if(!d||!n||!ph){alert(t('invalid'));return}if(new Date(d+'T12:00:00').getDay()===1){document.getElementById('bookingResult').style.display='block';document.getElementById('bookingResult').textContent=t('closed');return}const mins=tm==='21:00'?(p<=3?60:90):(p<=3?90:120);const [h,m]=tm.split(':').map(Number),end=new Date(2000,0,1,h,m+mins);const endTime=String(end.getHours()).padStart(2,'0')+':'+String(end.getMinutes()).padStart(2,'0');const thaliCount=new Date(d+'T12:00:00').getDay()===4?Number(document.getElementById('thaliCount').value||0):0;
-if(thaliCount>p){alert('Thali count cannot exceed party size.');return}
+document.getElementById('bookingForm').addEventListener('submit',e=>{e.preventDefault();const d=document.getElementById('date').value,p=Number(document.getElementById('party').value),tm=document.getElementById('time').value,n=document.getElementById('name').value.trim(),ph=document.getElementById('phone').value.trim();if(!d||!n||!ph){alert(t('invalid'));return}if(new Date(d+'T12:00:00').getDay()===1){document.getElementById('bookingResult').style.display='block';document.getElementById('bookingResult').textContent=t('closed');return}const mins=tm==='21:00'?(p<=3?60:90):(p<=3?90:120);const [h,m]=tm.split(':').map(Number),end=new Date(2000,0,1,h,m+mins);const endTime=String(end.getHours()).padStart(2,'0')+':'+String(end.getMinutes()).padStart(2,'0');const thaliCount=new Date(d+'T12:00:00').getDay()===4?Number(document.getElementById('thaliCount').value||0):0,alacarteCount=new Date(d+'T12:00:00').getDay()===4?Number(document.getElementById('alacarteCount').value||0):p;
+if(thaliCount>p||alacarteCount>p||thaliCount+alacarteCount!==p){alert('Thali and à la carte guest counts must add up to your party size.');return}
 if(thaliCount>0){const used=bookings.filter(b=>b.date===d&&b.time&&b.time.slice(0,2)===tm.slice(0,2)&&b.status!=='Cancelled').reduce((sum,b)=>sum+(b.thali_count||0),0);
 if(used+thaliCount>12){document.getElementById('bookingResult').style.display='block';document.getElementById('bookingResult').textContent='Only '+Math.max(0,12-used)+' Thali places remain in this hour.';return}}
 const table=caps.findIndex(c=>c>=p)+1;bookings.push({date:d,time:tm,name:n,party:p,table,status:'Confirmed',thali_count:thaliCount});document.getElementById('bookingResult').style.display='block';document.getElementById('bookingResult').textContent=t('confirm')+' Thali: '+thaliCount+' · À la carte: '+(p-thaliCount)+'. '+(lang==='es'?'Duración: ':'Duration: ')+mins+' min. '+(lang==='es'?'Fin estimado: ':'Estimated end: ')+endTime+'.';render()});
