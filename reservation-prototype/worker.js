@@ -47,31 +47,50 @@ export default {
   }
   if(url.pathname==="/api/availability" && req.method==="GET"){
     const date=url.searchParams.get("date"),party=Number(url.searchParams.get("party_size"));
+    const thaliCount=Number(url.searchParams.get("thali_count")||0);
+    if(!Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party)
+      return json({error:"thali_count must be between 0 and party_size."},400);
     if(!validDate(date)||!Number.isInteger(party)||party<1||party>8)
       return json({error:"Provide a valid date and party_size from 1 to 8."},400);
     const weekday=new Date(date+"T12:00:00Z").getUTCDay();
     if(weekday===1) return json({date,party_size:party,available_times:[],message:"Closed Mondays."});
+    const isThursday=weekday===4;
+    if(thaliCount>0&&!isThursday) return json({error:"Thali reservations are available on Thursdays only."},400);
     const eligible=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 AND capacity>=? ORDER BY capacity,id").bind(party).all();
     const all=await assignedBookings(env.DB,date,date);
     const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00"];
-    const available_times=times.filter(t=>{
+    const available_times=[];
+    const thali_remaining={};
+    for(const t of times){
       const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
-      if(end.date!==date || (t!=="21:00" && end.time>"22:00")) return false;
-      return eligible.results.some(table=>!all.some(b=>b.table_id===table.id &&
+      if(end.date!==date || (t!=="21:00" && end.time>"22:00")) continue;
+      const tableFree=eligible.results.some(table=>!all.some(b=>b.table_id===table.id &&
         overlaps(date,t,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
-    });
-    return json({date,party_size:party,available_times,kitchen_last_order:"21:30",
+      if(!tableFree) continue;
+      if(isThursday&&thaliCount>0){
+        const hour=t.slice(0,2);
+        const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(date,hour).first();
+        const remaining=Math.max(0,12-(used?.used||0));
+        thali_remaining[hour]=remaining;
+        if(remaining<thaliCount) continue;
+      }
+      available_times.push(t);
+    }
+    return json({date,party_size:party,thali_count:thaliCount,available_times,
+      thali_hourly_limit:isThursday?12:null,thali_remaining,kitchen_last_order:"21:30",
       note:"Last kitchen order at 9:30 pm. 9:00 pm arrival: 60-minute seating for 1–3 guests; 90 minutes for 4–8 guests."});
   }
   if(url.pathname==="/api/reservations" && req.method==="POST"){
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
     const {guest_name,phone,email=null,party_size,reservation_date,start_time,language="en",special_requests=null}=body||{};
-    const party=Number(party_size);
+    const party=Number(party_size),thaliCount=Number(body?.thali_count||0);
     if(!guest_name?.trim()||!phone?.trim()||!Number.isInteger(party)||party<1||party>8||
+       !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
        !validDate(reservation_date)||!validTime(start_time)||!["en","es"].includes(language))
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
-    if(new Date(reservation_date+"T12:00:00Z").getUTCDay()===1)
-      return json({error:"Purpose is closed on Mondays."},400);
+    const weekday=new Date(reservation_date+"T12:00:00Z").getUTCDay();
+    if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
+    if(thaliCount>0&&weekday!==4) return json({error:"Thali reservations are available on Thursdays only."},400);
     if(start_time<"17:00"||start_time>"21:00")
       return json({error:"Choose an arrival time between 5:00 pm and 9:00 pm."},400);
     const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
@@ -83,20 +102,26 @@ export default {
     const free=eligible.results.find(t=>!all.some(b=>b.table_id===t.id &&
       overlaps(reservation_date,start_time,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
     if(!free) return json({error:"No table is available at that time. Please choose another time."},409);
+    if(weekday===4&&thaliCount>0){
+      const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(reservation_date,start_time.slice(0,2)).first();
+      if((used?.used||0)+thaliCount>12) return json({error:"Only 12 Thali guests are available in this hour. Please reduce the Thali count or choose another hour."},409);
+    }
     const id=crypto.randomUUID(),code=crypto.randomUUID().slice(0,8).toUpperCase();
     try{
       await env.DB.batch([
         env.DB.prepare(`INSERT INTO reservations
-          (id,confirmation_code,guest_name,phone,email,party_size,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language,special_requests)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,'confirmed','online',?,?)`)
-          .bind(id,code,guest_name.trim(),phone.trim(),email,party,reservation_date,start_time,duration,end.date,end.time,language,special_requests),
+          (id,confirmation_code,guest_name,phone,email,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language,special_requests)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'confirmed','online',?,?)`)
+          .bind(id,code,guest_name.trim(),phone.trim(),email,party,thaliCount,reservation_date,start_time,duration,end.date,end.time,language,special_requests),
         env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,free.id)
       ]);
     }catch(e){
       if(String(e).includes("TABLE_TIME_CONFLICT")) return json({error:"That table was just booked. Please choose another time."},409);
+      if(String(e).includes("THALI_HOURLY_LIMIT")) return json({error:"Only 12 Thali guests are available in this hour. Please choose another hour or reduce the Thali count."},409);
       return json({error:"Booking could not be saved. Please try again."},500);
     }
     return json({ok:true,confirmation_code:code,date:reservation_date,start_time,end_time:end.time,duration_minutes:duration,
+      thali_count:thaliCount,alacarte_count:party-thaliCount,
       kitchen_last_order:"21:30",guest_note:language==="es"?"Última orden de cocina a las 9:30 pm.":"Last kitchen order at 9:30 pm."},201);
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
