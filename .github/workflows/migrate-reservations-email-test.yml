@@ -15,6 +15,14 @@ jobs:
         with:
           ref: reservation-system-prototype
 
+      - name: Verify Cloudflare API token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          response=$(curl -sS https://api.cloudflare.com/client/v4/user/tokens/verify -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
+          echo "$response" | jq '{success: .success, errors: .errors, status: .result.status}'
+          test "$(echo "$response" | jq -r .success)" = "true"
+
       - name: Apply email tracking columns to isolated test database
         uses: cloudflare/wrangler-action@v3
         with:
