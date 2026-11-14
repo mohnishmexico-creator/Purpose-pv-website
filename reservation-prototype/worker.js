@@ -1,5 +1,6 @@
 import { connect } from "cloudflare:sockets";
 import { chooseTables, overlaps } from "./allocation.mjs";
+import { seatingDuration, weekdayForDate, isArrivalTime } from "./booking-rules.mjs";
 
 /** Purpose PV reservation API prototype. Test-only. */
 const ACTIVE = "'requested','confirmed','seated'";
@@ -13,10 +14,6 @@ function addMinutes(date,time,minutes){
 function validDate(s){return /^\d{4}-\d{2}-\d{2}$/.test(s||"") && !Number.isNaN(Date.parse(s+"T12:00:00Z"));}
 function validTime(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||"");}
 function validBirthday(s){ if(s==null||s==="") return true; if(!/^\d{2}-\d{2}$/.test(s)) return false; const [m,d]=s.split("-").map(Number); const dt=new Date(Date.UTC(2000,m-1,d)); return dt.getUTCMonth()===m-1 && dt.getUTCDate()===d; }
-function seatingDuration(party,time){
-  if(time==="21:00") return party<=3?60:90;
-  return party<=3?90:120;
-}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{
   "content-type":"application/json; charset=utf-8","cache-control":"no-store",
   "x-content-type-options":"nosniff","referrer-policy":"no-referrer"
@@ -252,9 +249,9 @@ export default {
     const party=Number(body.party_size),thali=Number(body.thali_count||0),date=body.reservation_date,time=body.start_time;
     const name=String(body.guest_name||"Walk-in").trim(),phone=String(body.phone||"").trim();
     if(!validDate(date)||!validTime(time)||!Number.isInteger(party)||party<1||party>8||
-       !Number.isInteger(thali)||thali<0||thali>party||time<"17:00"||time>"21:00")
+       !Number.isInteger(thali)||thali<0||thali>party||!isArrivalTime(time))
       return json({error:"Provide a valid date, arrival time, party size (1–8) and Thali count."},400);
-    const weekday=new Date(date+"T12:00:00Z").getUTCDay();
+    const weekday=weekdayForDate(date);
     if(weekday===1)return json({error:"Purpose is closed on Mondays."},400);
     if(thali>0&&weekday!==4)return json({error:"Thali is available Thursdays only."},400);
     const duration=seatingDuration(party,time),end=addMinutes(date,time,duration);
@@ -314,10 +311,10 @@ export default {
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
        !validDate(reservation_date)||!validTime(start_time)||!validBirthday(birthday)||!["en","es"].includes(language))
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
-    const weekday=new Date(reservation_date+"T12:00:00Z").getUTCDay();
+    const weekday=weekdayForDate(reservation_date);
     if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
     if(thaliCount>0&&weekday!==4) return json({error:"Thali reservations are available on Thursdays only."},400);
-    if(start_time<"17:00"||start_time>"21:00")
+    if(!isArrivalTime(start_time))
       return json({error:"Choose an arrival time between 5:00 pm and 9:00 pm."},400);
     const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
     if(end.date!==reservation_date||(start_time!=="21:00"&&end.time>"22:00"))
