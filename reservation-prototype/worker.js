@@ -1,3 +1,5 @@
+import { connect } from "cloudflare:sockets";
+
 /** Purpose PV reservation API prototype. Test-only. */
 const ACTIVE = "'requested','confirmed','seated'";
 const pad = n => String(n).padStart(2,"0");
@@ -47,34 +49,73 @@ function confirmationEmail(r){
     : `<p>Hello ${name},</p><p>Your reservation at <strong>Purpose Indian Kitchen</strong> is confirmed.</p><p><strong>Confirmation code:</strong> ${code}<br><strong>Date:</strong> ${date}<br><strong>Arrival:</strong> ${time}<br><strong>Guests:</strong> ${r.party_size}</p><p><strong>Thali:</strong> ${thali} · <strong>À la carte:</strong> ${ala}</p><p>Last kitchen order is at 9:30 pm.</p><p>Roma 193, Versalles, Puerto Vallarta<br>WhatsApp: +52 322 109 0525</p><p>We look forward to welcoming you.<br>Purpose PV</p>`;
   return {subject:es?`Reservación confirmada · Purpose PV · ${code}`:`Reservation confirmed · Purpose PV · ${code}`,content};
 }
+function base64Utf8(value){
+  const bytes=new TextEncoder().encode(String(value));
+  let binary="";
+  for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return btoa(binary);
+}
 async function sendZohoConfirmation(env,reservation){
-  const required=["ZOHO_CLIENT_ID","ZOHO_CLIENT_SECRET","ZOHO_REFRESH_TOKEN","ZOHO_ACCOUNT_ID"];
-  if(required.some(k=>!env[k])) return {status:"not_configured"};
-  const tokenUrl=new URL("https://accounts.zoho.com/oauth/v2/token");
-  tokenUrl.search=new URLSearchParams({
-    refresh_token:env.ZOHO_REFRESH_TOKEN,
-    client_id:env.ZOHO_CLIENT_ID,
-    client_secret:env.ZOHO_CLIENT_SECRET,
-    grant_type:"refresh_token"
-  }).toString();
-  const tokenRes=await fetch(tokenUrl.toString(),{method:"POST"});
-  const tokenData=await tokenRes.json().catch(()=>({}));
-  if(!tokenRes.ok||!tokenData.access_token) throw new Error("ZOHO_TOKEN_REFRESH_FAILED");
-  const mail=confirmationEmail(reservation);
-  const mailRes=await fetch(`https://mail.zoho.com/api/accounts/${encodeURIComponent(env.ZOHO_ACCOUNT_ID)}/messages`,{
-    method:"POST",
-    headers:{"Authorization":`Zoho-oauthtoken ${tokenData.access_token}`,"Content-Type":"application/json","Accept":"application/json"},
-    body:JSON.stringify({
-      fromAddress:"Purpose PV <info@purposepv.com>",
-      toAddress:reservation.email,
-      subject:mail.subject,
-      content:mail.content,
-      mailFormat:"html"
-    })
-  });
-  const mailData=await mailRes.json().catch(()=>({}));
-  if(!mailRes.ok||mailData?.status?.code!==200) throw new Error("ZOHO_SEND_FAILED");
-  return {status:"sent",message_id:mailData?.data?.messageId||null};
+  if(!env.ZOHO_SMTP_PASSWORD) return {status:"not_configured"};
+  const username=env.ZOHO_SMTP_USER||"info@purposepv.com";
+  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(username) ||
+     !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(reservation.email||""))
+    throw new Error("INVALID_EMAIL_ADDRESS");
+  const socket=connect({hostname:"smtppro.zoho.com",port:465},{secureTransport:"on"});
+  const reader=socket.readable.getReader(),writer=socket.writable.getWriter();
+  const decoder=new TextDecoder();
+  let buffer="";
+  async function reply(){
+    while(true){
+      const end=buffer.search(/\\r?\\n/);
+      if(end>=0){
+        const line=buffer.slice(0,end);
+        buffer=buffer.slice(end+(buffer.slice(end).startsWith("\\r\\n")?2:1));
+        const match=line.match(/^(\\d{3})([ -])(.*)$/);
+        if(match&&match[2]===" ") return Number(match[1]);
+        continue;
+      }
+      const part=await reader.read();
+      if(part.done) throw new Error("SMTP_CONNECTION_CLOSED");
+      buffer+=decoder.decode(part.value,{stream:true});
+    }
+  }
+  async function command(line,expected){
+    await writer.write(new TextEncoder().encode(line+"\\r\\n"));
+    const status=await reply();
+    if(!expected.includes(status)) throw new Error("SMTP_COMMAND_FAILED_"+status);
+    return status;
+  }
+  try{
+    if(await reply()!==220) throw new Error("SMTP_GREETING_FAILED");
+    await command("EHLO purposepv.com",[250]);
+    await command("AUTH PLAIN "+base64Utf8("\\0"+username+"\\0"+env.ZOHO_SMTP_PASSWORD),[235]);
+    await command("MAIL FROM:<"+username+">",[250]);
+    await command("RCPT TO:<"+reservation.email+">",[250,251]);
+    await command("DATA",[354]);
+    const mail=confirmationEmail(reservation);
+    const subject="=?UTF-8?B?"+base64Utf8(mail.subject)+"?=";
+    const body=base64Utf8(mail.content);
+    const lines=body.match(/.{1,76}/g)||[];
+    const message=[
+      "From: Purpose PV <"+username+">",
+      "To: <"+reservation.email+">",
+      "Subject: "+subject,
+      "MIME-Version: 1.0",
+      "Content-Type: text/html; charset=UTF-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      ...lines
+    ].join("\\r\\n").replace(/(^|\\r\\n)\\./g,"$1..");
+    await writer.write(new TextEncoder().encode(message+"\\r\\n.\\r\\n"));
+    if(await reply()!==250) throw new Error("SMTP_MESSAGE_REJECTED");
+    await command("QUIT",[221]);
+    return {status:"sent"};
+  } finally {
+    try{await writer.close();}catch{}
+    try{await reader.cancel();}catch{}
+    try{socket.close();}catch{}
+  }
 }
 
 export default {
