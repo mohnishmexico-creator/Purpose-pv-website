@@ -166,8 +166,6 @@ async function sendZohoConfirmation(env,reservation){
   return sendZohoMail(env,reservation.email,confirmationEmail(reservation));
 }
 
-}
-
 export default {
  async fetch(req,env,ctx){
   const url=new URL(req.url);
