@@ -18,6 +18,10 @@ jobs:
         with:
           ref: reservation-system-prototype
 
+      - name: Run table allocation unit tests
+        run: node --test tests/*.test.mjs
+        working-directory: reservation-prototype
+
       - name: Apply idempotent staff login throttle migration to test D1
         uses: cloudflare/wrangler-action@v3
         with:
