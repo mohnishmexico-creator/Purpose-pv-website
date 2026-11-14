@@ -311,30 +311,42 @@ export default {
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
     if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
-    const id=url.pathname.split("/").pop();let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
+    const id=url.pathname.split("/").pop();
+    if(!id || id.includes("/")) return json({error:"Invalid reservation id."},400);
+    let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
     const allowed=["confirmed","seated","completed","cancelled","no_show"];
-    if(body.status&&!allowed.includes(body.status)) return json({error:"Invalid status."},400);
+    if(body.status!==undefined&&!allowed.includes(body.status)) return json({error:"Invalid status."},400);
+    if(body.internal_notes!==undefined && String(body.internal_notes).length>2000)
+      return json({error:"Internal notes must be 2,000 characters or fewer."},400);
+    const current=await env.DB.prepare("SELECT id,party_size,status FROM reservations WHERE id=?").bind(id).first();
+    if(!current) return json({error:"Reservation not found."},404);
+    const statements=[];
+    if(body.status!==undefined)
+      statements.push(env.DB.prepare("UPDATE reservations SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,id));
+    if(body.internal_notes!==undefined)
+      statements.push(env.DB.prepare("UPDATE reservations SET internal_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(String(body.internal_notes),id));
+    if(body.table_ids!==undefined){
+      if(!Array.isArray(body.table_ids)||body.table_ids.length<1||
+        body.table_ids.some(x=>!Number.isInteger(x)||x<1||x>9)||
+        new Set(body.table_ids).size!==body.table_ids.length)
+        return json({error:"table_ids must be a unique list of table numbers 1–9."},400);
+      const marks=body.table_ids.map(()=>"?").join(",");
+      const capacity=await env.DB.prepare(`SELECT COALESCE(SUM(capacity),0) AS seats FROM dining_tables WHERE is_active=1 AND id IN (${marks})`).bind(...body.table_ids).first();
+      if(Number(capacity?.seats||0)<Number(current.party_size))
+        return json({error:"The selected active tables do not have enough seats."},409);
+      statements.push(env.DB.prepare("DELETE FROM reservation_tables WHERE reservation_id=?").bind(id));
+      for(const tableId of body.table_ids)
+        statements.push(env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId));
+    }
     try{
-      if(body.status) await env.DB.prepare("UPDATE reservations SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,id).run();
-      if(body.internal_notes!==undefined) await env.DB.prepare("UPDATE reservations SET internal_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(String(body.internal_notes),id).run();
-      if(body.table_ids!==undefined){
-        if(!Array.isArray(body.table_ids)||body.table_ids.length<1||
-          body.table_ids.some(x=>!Number.isInteger(x)||x<1||x>9)||
-          new Set(body.table_ids).size!==body.table_ids.length)
-          return json({error:"table_ids must be a unique list of table numbers 1–9."},400);
-        const current=await env.DB.prepare("SELECT party_size FROM reservations WHERE id=?").bind(id).first();
-        if(!current) return json({error:"Reservation not found."},404);
-        const marks=body.table_ids.map(()=>"?").join(",");
-        const capacity=await env.DB.prepare(`SELECT COALESCE(SUM(capacity),0) AS seats FROM dining_tables WHERE is_active=1 AND id IN (${marks})`).bind(...body.table_ids).first();
-        if(Number(capacity?.seats||0)<Number(current.party_size))
-          return json({error:"The selected tables do not have enough seats."},409);
-        const changes=[env.DB.prepare("DELETE FROM reservation_tables WHERE reservation_id=?").bind(id),
-          ...body.table_ids.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))];
-        await env.DB.batch(changes);
-      }
-    }catch(e){if(String(e).includes("TABLE_TIME_CONFLICT"))return json({error:"Status change would cause a table conflict."},409);throw e;}
+      if(statements.length) await env.DB.batch(statements);
+    }catch(e){
+      if(String(e).includes("TABLE_TIME_CONFLICT")) return json({error:"That table is already assigned to an overlapping reservation."},409);
+      if(String(e).includes("THALI_HOURLY_LIMIT")) return json({error:"This change would exceed the 12 Thali guests per hour limit."},409);
+      throw e;
+    }
     const r=await env.DB.prepare("SELECT id,confirmation_code,guest_name,party_size,reservation_date,start_time,duration_minutes,end_date,end_time,status FROM reservations WHERE id=?").bind(id).first();
-    return r?json({reservation:r}):json({error:"Reservation not found."},404);
+    return json({reservation:r});
   }
   return json({error:"Not found."},404);
  }
