@@ -194,8 +194,24 @@ export default {
     if(!sameOrigin(req))return json({error:"Invalid origin."},403);
     if(!env.ADMIN_PASSWORD||!env.ADMIN_SESSION_SECRET)return json({error:"Staff login is not configured."},503);
     let body;try{body=await req.json()}catch{return json({error:"Invalid JSON."},400)}
-    if(typeof body.password!=="string"||body.password.length>256||body.password!==env.ADMIN_PASSWORD)
+    if(typeof body.password!=="string"||body.password.length>256)
       return json({error:"Incorrect password."},401);
+    const ip=req.headers.get("cf-connecting-ip")||"unknown";
+    const ipHash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(ip))))
+      .map(x=>x.toString(16).padStart(2,"0")).join("");
+    const attempts=await env.DB.prepare(
+      "SELECT COUNT(*) AS n, MIN(attempted_at) AS oldest FROM staff_login_attempts WHERE ip_hash=? AND attempted_at > datetime('now','-15 minutes')"
+    ).bind(ipHash).first();
+    if(Number(attempts?.n||0)>=5)
+      return json({error:"Too many attempts. Please wait 15 minutes before trying again."},429);
+    if(body.password!==env.ADMIN_PASSWORD){
+      await env.DB.prepare("INSERT INTO staff_login_attempts (ip_hash) VALUES (?)").bind(ipHash).run();
+      return json({error:"Incorrect password."},401);
+    }
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM staff_login_attempts WHERE ip_hash=?").bind(ipHash),
+      env.DB.prepare("DELETE FROM staff_login_attempts WHERE attempted_at < datetime('now','-1 day')")
+    ]);
     const payload=b64url(new TextEncoder().encode(JSON.stringify({role:"staff",exp:Date.now()+8*60*60*1000})));
     const signature=await signSession(payload,env.ADMIN_SESSION_SECRET);
     return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":`purpose_staff=${payload}.${signature}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800`}});
