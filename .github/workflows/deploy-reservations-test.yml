@@ -2,6 +2,9 @@ name: Deploy Purpose reservations test Worker
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - reservation-system-prototype
 
 permissions:
   contents: read
