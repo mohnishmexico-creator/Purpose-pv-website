@@ -8,3 +8,7 @@ workers_dev = true
 binding = "DB"
 database_name = "purpose-reservations-test-db"
 database_id = "b4ae5d59-805c-46cf-b45b-463332b1b0db"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
