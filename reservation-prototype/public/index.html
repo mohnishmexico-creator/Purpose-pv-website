@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Purpose PV · Reservations Preview</title>
+<style>
+:root{--ink:#262720;--green:#263d2d;--gold:#ad8b54;--paper:#f7f3e9;--line:#ddd5c5;--muted:#6c6b61}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 Arial,sans-serif}
+header{background:var(--green);color:#fff;padding:22px 18px;text-align:center}header small{letter-spacing:.18em;font-size:11px}header h1{font:normal 30px Georgia,serif;margin:5px 0}header p{margin:0;color:#e8e1d2}
+main{max-width:980px;margin:24px auto;padding:0 16px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.tabs{display:flex;gap:8px}.tabs button,.lang button{border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 14px;border-radius:4px;cursor:pointer}.tabs button.active{background:var(--green);color:#fff;border-color:var(--green)}
+.lang button.active{border-color:var(--gold);background:#efe6d5}
+.panel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:22px;margin:18px 0;box-shadow:0 4px 16px #382b1710}
+h2{font:normal 25px Georgia,serif;margin:0 0 6px}.sub{color:var(--muted);margin:0 0 20px}.notice{background:#f5efe2;border-left:3px solid var(--gold);padding:12px 14px;margin:14px 0 20px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:4px;background:#fff;font:inherit;color:var(--ink)}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}.primary{background:var(--green);color:white;border:0;border-radius:4px;padding:12px 18px;font:inherit;cursor:pointer}.secondary{background:white;color:var(--green);border:1px solid var(--green);border-radius:4px;padding:10px 15px;cursor:pointer}
+.result{padding:12px;background:#edf3eb;border:1px solid #d1dfce;border-radius:4px;margin-top:14px;display:none}
+small.muted,.muted{color:var(--muted)}.pill{display:inline-block;padding:3px 8px;border-radius:20px;background:#f0eadf;font-size:12px}
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-weight:600}
+.tablegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.tablecard{border:1px solid var(--line);border-radius:6px;padding:12px;background:#fff}.tablecard strong{display:block;font:normal 20px Georgia,serif}.tablecard span{font-size:13px;color:var(--muted)}
+footer{text-align:center;color:var(--muted);padding:16px;font-size:12px}
+@media(max-width:600px){.grid{grid-template-columns:1fr}.panel{padding:16px}.tablegrid{grid-template-columns:repeat(2,1fr)}table{font-size:12px}th,td{padding:8px 4px}}
+</style>
+</head>
+<body>
+<header><small>PURPOSE INDIAN KITCHEN · VERSALLES</small><h1>Reservations</h1><p>A hedonist’s delight</p></header>
+<main>
+<div class="top"><div class="tabs"><button id="guestTab" class="active" onclick="showView('guest')">Guest booking</button><button id="staffTab" onclick="showView('staff')">Staff dashboard</button></div><div class="lang"><button id="enBtn" class="active" onclick="setLang('en')">English</button><button id="esBtn" onclick="setLang('es')">Español</button></div></div>
+<section id="guestView" class="panel">
+<h2 id="guestTitle">Book a table</h2><p class="sub" id="guestSub">Choose your date and party size to see sample availability.</p>
+<div class="notice" id="kitchenNotice">Last kitchen order at 9:30 pm.</div>
+<form id="bookingForm">
+<div class="grid">
+<div class="field"><label id="dateLabel">Date</label><input id="date" type="date" required></div>
+<div class="field"><label id="partyLabel">Number of guests</label><select id="party"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></div>
+<div class="field" id="thaliField" hidden>
+  <div style="font-weight:700;margin-bottom:8px">Thursday dining choice · Choose for your party</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div><label for="thaliCount" style="font-weight:700">Thali</label><select id="thaliCount"></select><small>Number of guests having Thali</small></div>
+    <div><label for="alacarteCount" style="font-weight:700">À la carte</label><select id="alacarteCount"></select><small>Number of guests ordering from the regular menu</small></div>
+  </div>
+  <small id="mealChoiceNote" style="display:block;margin-top:8px">The two counts must add up to your total party size. Thali availability is limited to 12 guests per hour.</small>
+</div>
+<div class="field"><label id="timeLabel">Arrival time</label><select id="time"><option value="17:00">5:00 pm</option><option value="17:30">5:30 pm</option><option value="18:00">6:00 pm</option><option value="18:30">6:30 pm</option><option value="19:00">7:00 pm</option><option value="19:30">7:30 pm</option><option value="20:00">8:00 pm</option><option value="20:30">8:30 pm</option><option value="21:00">9:00 pm</option></select></div>
+<div class="field"><label id="nameLabel">Name</label><input id="name" required placeholder="Your name"></div>
+<div class="field"><label id="phoneLabel">Phone / WhatsApp</label><input id="phone" required placeholder="+52 ..."></div>
+<div class="field"><label id="emailLabel">Email (optional)</label><input id="email" type="email" placeholder="you@example.com"></div>
+</div>
+<div class="field" style="margin-top:14px"><label id="requestLabel">Special requests (optional)</label><textarea id="requests" rows="2"></textarea></div>
+<div class="actions"><button class="primary" id="bookBtn" type="submit">Request reservation</button><span class="muted" id="duration">Standard seating: 90 minutes (1–3 guests) / 120 minutes (4–8 guests)</span></div>
+<div class="result" id="bookingResult" role="status"></div>
+</form>
+</section>
+<section id="staffView" class="panel" hidden>
+<h2 id="staffTitle">Staff dashboard</h2><p class="sub" id="staffSub">Sample bookings only · changes stay in this browser preview.</p>
+<div class="actions"><span class="pill">Tuesday–Sunday · 5:00–10:00 pm</span><span class="pill">36 seats · 9 tables</span><button class="secondary" onclick="addSample()">Add sample walk-in</button></div>
+<table><thead><tr><th>Time</th><th>Guest</th><th>Party</th><th>Table</th><th>Status</th><th>Action</th></tr></thead><tbody id="bookingRows"></tbody></table>
+<h2 style="margin-top:28px">Floor plan</h2><div class="tablegrid" id="floor"></div>
+</section>
+</main><footer>PRIVATE TEST BOOKING · ISOLATED DATABASE · NOT LIVE BOOKINGS</footer>
+<script>
+const copy={en:{guest:"Guest booking",staff:"Staff dashboard",book:"Book a table",sub:"Choose your date and party size to see sample availability.",notice:"Last kitchen order at 9:30 pm.",date:"Date",party:"Number of guests",time:"Arrival time",name:"Name",phone:"Phone / WhatsApp",email:"Email (optional)",requests:"Special requests (optional)",submit:"Request reservation",duration:"Standard seating: 90 minutes (1–3 guests) / 120 minutes (4–8 guests)",staffsub:"Sample bookings only · changes stay in this browser preview.",confirm:"Sample reservation saved in this preview. No real booking was made.",closed:"Purpose is closed on Mondays.",guestName:"Guest",status:"Confirmed",seat:"Mark seated",done:"Complete",cancel:"Cancel",table:"Table",seats:"seats",walkin:"Walk-in",invalid:"Please complete the required fields."},es:{guest:"Reservar mesa",staff:"Panel del personal",book:"Reservar una mesa",sub:"Elige la fecha y el número de personas para ver disponibilidad de ejemplo.",notice:"Última orden de cocina a las 9:30 pm.",date:"Fecha",party:"Número de personas",time:"Hora de llegada",name:"Nombre",phone:"Teléfono / WhatsApp",email:"Correo (opcional)",requests:"Solicitudes especiales (opcional)",submit:"Solicitar reservación",duration:"Tiempo estándar: 90 minutos (1–3 personas) / 120 minutos (4–8 personas)",staffsub:"Solo reservaciones de ejemplo · los cambios quedan en esta vista previa.",confirm:"Reservación de ejemplo guardada. No se hizo una reservación real.",closed:"Purpose cierra los lunes.",guestName:"Cliente",status:"Confirmada",seat:"Marcar sentado",done:"Completar",cancel:"Cancelar",table:"Mesa",seats:"lugares",walkin:"Sin reservación",invalid:"Completa los campos obligatorios."}};
+let lang='en', bookings=[{time:'17:30',name:'Alex Rivera',party:2,table:4,status:'Confirmed',thali_count:0},{time:'18:00',name:'Jamie Lee',party:4,table:2,status:'Confirmed',thali_count:0},{time:'19:00',name:'Sofia Cruz',party:3,table:5,status:'Seated',thali_count:0}];
+const caps=[8,4,4,2,4,2,4,2,6];
+function t(k){return copy[lang][k]}
+function updateThaliField(){
+ const d=document.getElementById('date').value,p=Number(document.getElementById('party').value);
+ const thursday=d&&new Date(d+'T12:00:00').getDay()===4,field=document.getElementById('thaliField');
+ const thali=document.getElementById('thaliCount'),ala=document.getElementById('alacarteCount');
+ field.hidden=!thursday;
+ const oldThali=Math.min(Number(thali.value||0),p);
+ const options=n=>Array.from({length:p+1},(_,i)=>'<option value="'+i+'">'+i+'</option>').join('');
+ thali.innerHTML=options(p);ala.innerHTML=options(p);
+ thali.value=String(oldThali);ala.value=String(p-oldThali);
+ thali.onchange=()=>{ala.value=String(p-Number(thali.value));};
+ ala.onchange=()=>{thali.value=String(p-Number(ala.value));};
+}
+document.getElementById('date').addEventListener('change',updateThaliField);
+document.getElementById('party').addEventListener('change',updateThaliField);
+function setLang(l){lang=l;document.documentElement.lang=l;document.getElementById('enBtn').classList.toggle('active',l==='en');document.getElementById('esBtn').classList.toggle('active',l==='es');document.getElementById('guestTab').textContent=t('guest');document.getElementById('staffTab').textContent=t('staff');document.getElementById('guestTitle').textContent=t('book');document.getElementById('guestSub').textContent=t('sub');document.getElementById('kitchenNotice').textContent=t('notice');['date','party','time','name','phone','email','requests'].forEach(k=>document.getElementById(k+'Label').textContent=t(k));document.getElementById('bookBtn').textContent=t('submit');document.getElementById('duration').textContent=t('duration');document.getElementById('staffTitle').textContent=t('staff');document.getElementById('staffSub').textContent=t('staffsub');render()}
+function showView(v){document.getElementById('guestView').hidden=v!=='guest';document.getElementById('staffView').hidden=v!=='staff';document.getElementById('guestTab').classList.toggle('active',v==='guest');document.getElementById('staffTab').classList.toggle('active',v==='staff');if(v==='staff')render()}
+function render(){document.getElementById('bookingRows').innerHTML=bookings.map((b,i)=>'<tr><td>'+b.time+'</td><td>'+b.name+'</td><td>'+b.party+'</td><td>'+b.table+'</td><td>'+b.status+'</td><td><button class="secondary" onclick="changeStatus('+i+')">'+(b.status==='Confirmed'?t('seat'):t('done'))+'</button></td></tr>').join('');document.getElementById('floor').innerHTML=caps.map((c,i)=>'<div class="tablecard"><strong>'+t('table')+' '+(i+1)+'</strong><span>'+c+' '+t('seats')+'</span></div>').join('')}
+function changeStatus(i){bookings[i].status=bookings[i].status==='Confirmed'?'Seated':bookings[i].status==='Seated'?'Completed':'Confirmed';render()}
+function addSample(){bookings.push({time:'20:00',name:t('walkin'),party:2,table:6,status:'Confirmed'});render()}
+document.getElementById('bookingForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const d=document.getElementById('date').value,p=Number(document.getElementById('party').value),tm=document.getElementById('time').value;
+ const n=document.getElementById('name').value.trim(),ph=document.getElementById('phone').value.trim(),email=document.getElementById('email').value.trim();
+ const result=document.getElementById('bookingResult'),btn=document.getElementById('bookBtn');
+ const thaliCount=d&&new Date(d+'T12:00:00').getDay()===4?Number(document.getElementById('thaliCount').value||0):0;
+ if(!d||!n||!ph){alert(t('invalid'));return}
+ if(thaliCount>0&&new Date(d+'T12:00:00').getDay()!==4){alert('Thali is available Thursdays only.');return}
+ btn.disabled=true;btn.textContent=lang==='es'?'Enviando…':'Submitting…';
+ result.style.display='block';result.textContent=lang==='es'?'Comprobando disponibilidad…':'Checking availability…';
+ try{
+  const av=await fetch('/api/availability?date='+encodeURIComponent(d)+'&party_size='+p+'&thali_count='+thaliCount);
+  const availability=await av.json();
+  if(!av.ok) throw new Error(availability.error||'Availability check failed');
+  if(!availability.available_times.includes(tm)) throw new Error(lang==='es'?'Ese horario ya no está disponible. Elige otro.':'That time is not available. Please choose another time.');
+  result.textContent=lang==='es'?'Guardando reservación…':'Saving reservation…';
+  const response=await fetch('/api/reservations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
+   guest_name:n,phone:ph,email:email||null,party_size:p,thali_count:thaliCount,reservation_date:d,start_time:tm,
+   language:lang,special_requests:document.getElementById('requests').value.trim()||null
+  })});
+  const data=await response.json();
+  if(!response.ok||!data.ok) throw new Error(data.error||'Reservation failed');
+  const emailText=data.email_status==='sent'?(lang==='es'?'Correo de confirmación enviado.':'Confirmation email sent.')
+   :data.email_status==='not_requested'?(lang==='es'?'No se solicitó correo.':'No email was requested.')
+   :(lang==='es'?'Estado del correo: '+data.email_status+'.':'Email status: '+data.email_status+'.');
+  result.innerHTML='<strong>'+(lang==='es'?'Reservación guardada':'Reservation saved')+'</strong><br>'+
+   (lang==='es'?'Código de confirmación: ':'Confirmation code: ')+data.confirmation_code+'<br>'+
+   d+' · '+tm+' · '+p+' '+(lang==='es'?'personas':'guests')+'<br>'+emailText;
+ }catch(err){result.textContent=err.message||'Could not complete reservation.'}
+ finally{btn.disabled=false;btn.textContent=t('submit')}
+});
+document.getElementById('date').min=new Date().toISOString().slice(0,10);setLang('en');updateThaliField();render();
+</script>
+</body></html>
