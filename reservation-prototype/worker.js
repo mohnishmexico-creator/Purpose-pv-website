@@ -250,15 +250,15 @@ export default {
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY capacity,id").all();
     const free=tables.results.find(t=>t.capacity>=party&&!all.some(b=>b.table_id===t.id&&overlaps(date,time,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
     if(!free)return json({error:"No table is available for that time."},409);
+    const id=crypto.randomUUID(),code=crypto.randomUUID().slice(0,8).toUpperCase();
     try{
       await env.DB.batch([
         env.DB.prepare(`INSERT INTO reservations
           (id,confirmation_code,guest_name,phone,email,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language)
           VALUES (?,?,?,?,NULL,?,?,?,?,?,?,?,'seated','walk_in','en')`)
-          .bind(crypto.randomUUID(),crypto.randomUUID().slice(0,8).toUpperCase(),name,phone,party,thali,date,time,duration,end.date,end.time),
-        env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) SELECT id,? FROM reservations WHERE confirmation_code=(SELECT confirmation_code FROM reservations ORDER BY created_at DESC LIMIT 1)").bind(free.id)
-      ]);
-    }catch(e){return json({error:String(e).includes("THALI_HOURLY_LIMIT")?"This would exceed the 12 Thali guests per hour limit.":"Walk-in could not be saved; check availability and try again."},409)}
+          .bind(id,code,name,phone,party,thali,date,time,duration,end.date,end.time),
+        env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,free.id)
+      ]);    }catch(e){return json({error:String(e).includes("THALI_HOURLY_LIMIT")?"This would exceed the 12 Thali guests per hour limit.":"Walk-in could not be saved; check availability and try again."},409)}
     return json({ok:true,message:"Walk-in added and marked seated."},201);
   }
   if(url.pathname==="/api/availability" && req.method==="GET"){
