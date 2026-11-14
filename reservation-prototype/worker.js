@@ -1,4 +1,5 @@
 import { connect } from "cloudflare:sockets";
+import { chooseTables, overlaps } from "./allocation.mjs";
 
 /** Purpose PV reservation API prototype. Test-only. */
 const ACTIVE = "'requested','confirmed','seated'";
@@ -44,29 +45,6 @@ async function assignedBookings(db,date,endDate){
       AND r.reservation_date <= ? AND r.end_date >= ?
   `).bind(endDate,date).all();
   return r.results;
-}
-function overlaps(aDate,aStart,aEndDate,aEnd,bDate,bStart,bEndDate,bEnd){
-  const a0=Date.parse(aDate+"T"+aStart+"Z"),a1=Date.parse(aEndDate+"T"+aEnd+"Z");
-  const b0=Date.parse(bDate+"T"+bStart+"Z"),b1=Date.parse(bEndDate+"T"+bEnd+"Z");
-  return a0<b1 && b0<a1;
-}
-
-function chooseTables(tables,bookings,date,start,endDate,endTime,party){
-  const free=tables.filter(t=>!bookings.some(b=>b.table_id===t.id&&
-    overlaps(date,start,endDate,endTime,b.reservation_date,b.start_time,b.end_date,b.end_time)));
-  // Search every subset (nine tables maximum); prefer least unused capacity,
-  // then fewer tables, then stable table-number order.
-  let best=null;
-  for(let mask=1;mask<(1<<free.length);mask++){
-    let seats=0,ids=[];
-    for(let i=0;i<free.length;i++) if(mask&(1<<i)){seats+=Number(free[i].capacity);ids.push(Number(free[i].id));}
-    if(seats<party) continue;
-    ids.sort((a,b)=>a-b);
-    if(!best||seats<best.seats||(seats===best.seats&&ids.length<best.ids.length)||
-      (seats===best.seats&&ids.length===best.ids.length&&ids.join(",")<best.ids.join(",")))
-      best={seats,ids};
-  }
-  return best?.ids||null;
 }
 function escapeHtml(value){
   return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
