@@ -269,7 +269,30 @@ export default {
           VALUES (?,?,?,?,NULL,?,?,?,?,?,?,?,'seated','walk_in','en')`)
           .bind(id,code,name,phone,party,thali,date,time,duration,end.date,end.time),
         ...tableIds.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))
-      ]);    }catch(e){console.error("Walk-in save failed:",e);const detail=String(e?.message||e||"Unknown database error");return json({error:detail.includes("THALI_HOURLY_LIMIT")?"This would exceed the 12 Thali guests per hour limit.":"Walk-in could not be saved.",debug_error:detail},409)}
+      ]);    }catch(e){
+      console.error("Walk-in save failed:",e);
+      const detail=String(e?.message||e||"Unknown database error");
+      let conflicts=[];
+      if(detail.includes("TABLE_TIME_CONFLICT")&&tableIds.length){
+        const marks=tableIds.map(()=>"?").join(",");
+        const found=await env.DB.prepare(
+          "SELECT rt.table_id,r.guest_name,r.reservation_date,r.start_time,r.end_date,r.end_time,r.status " +
+          "FROM reservation_tables rt JOIN reservations r ON r.id=rt.reservation_id " +
+          "WHERE rt.table_id IN ("+marks+") AND r.status IN ('requested','confirmed','seated') " +
+          "AND julianday(r.reservation_date || 'T' || r.start_time) < julianday(? || 'T' || ?) " +
+          "AND julianday(? || 'T' || ?) < julianday(r.end_date || 'T' || r.end_time) " +
+          "ORDER BY rt.table_id,r.reservation_date,r.start_time"
+        ).bind(...tableIds,end.date,end.time,date,time).all();
+        conflicts=found.results||[];
+      }
+      return json({
+        error:detail.includes("THALI_HOURLY_LIMIT")
+          ?"This would exceed the 12 Thali guests per hour limit."
+          :"Walk-in could not be saved.",
+        debug_error:detail,
+        conflicting_assignments:conflicts
+      },409)
+    }
     return json({ok:true,message:"Walk-in added and marked seated."},201);
   }
   if(url.pathname==="/api/availability" && req.method==="GET"){
