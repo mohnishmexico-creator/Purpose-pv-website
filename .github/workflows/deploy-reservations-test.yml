@@ -1,0 +1,24 @@
+name: Deploy Purpose reservations test Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out prototype branch
+        uses: actions/checkout@v4
+        with:
+          ref: reservation-system-prototype
+
+      - name: Deploy isolated test Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: deploy
