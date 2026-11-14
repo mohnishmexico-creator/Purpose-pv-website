@@ -1,0 +1,16 @@
+name: Test new reservation email
+on:
+  push:
+    branches: [reservation-system-prototype]
+    paths:
+      - .github/workflows/run-new-booking-test.yml
+jobs:
+  test-booking:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create one isolated test reservation
+        run: |
+          curl --silent --show-error --include --max-time 60 \
+            -X POST "https://purpose-reservations-test.mohnishmexico.workers.dev/api/reservations" \
+            -H "Content-Type: application/json" \
+            --data '{"guest_name":"TEST Guest 2","phone":"+52 322 109 0525","email":"mohnishmexico@gmail.com","party_size":2,"thali_count":0,"reservation_date":"2026-11-21","start_time":"17:30","language":"en","special_requests":"TEST ONLY - second reservation email verification"}'
