@@ -279,10 +279,8 @@ export default {
           "SELECT rt.table_id,r.guest_name,r.reservation_date,r.start_time,r.end_date,r.end_time,r.status " +
           "FROM reservation_tables rt JOIN reservations r ON r.id=rt.reservation_id " +
           "WHERE rt.table_id IN ("+marks+") AND r.status IN ('requested','confirmed','seated') " +
-          "AND julianday(r.reservation_date || 'T' || r.start_time) < julianday(? || 'T' || ?) " +
-          "AND julianday(? || 'T' || ?) < julianday(r.end_date || 'T' || r.end_time) " +
           "ORDER BY rt.table_id,r.reservation_date,r.start_time"
-        ).bind(...tableIds,end.date,end.time,date,time).all();
+        ).bind(...tableIds).all();
         conflicts=found.results||[];
       }
       return json({
@@ -290,6 +288,8 @@ export default {
           ?"This would exceed the 12 Thali guests per hour limit."
           :"Walk-in could not be saved.",
         debug_error:detail,
+        attempted_table_ids:tableIds,
+        attempted_window:{reservation_date:date,start_time:time,end_date:end.date,end_time:end.time},
         conflicting_assignments:conflicts
       },409)
     }
