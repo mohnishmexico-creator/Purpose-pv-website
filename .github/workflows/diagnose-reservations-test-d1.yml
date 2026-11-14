@@ -1,7 +1,9 @@
 name: Diagnose Purpose reservations test D1 (read-only)
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - reservation-system-prototype
 
 permissions:
   contents: read
