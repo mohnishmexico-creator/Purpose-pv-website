@@ -245,9 +245,9 @@ export default {
     try{
       await env.DB.batch([
         env.DB.prepare(`INSERT INTO reservations
-          (id,confirmation_code,guest_name,phone,email,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language,special_requests)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'confirmed','online',?,?)`)
-          .bind(id,code,guest_name.trim(),phone.trim(),email,party,thaliCount,reservation_date,start_time,duration,end.date,end.time,language,special_requests),
+          (id,confirmation_code,guest_name,phone,email,birthday,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language,special_requests)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'confirmed','online',?,?)`)
+          .bind(id,code,guest_name.trim(),phone.trim(),email,birthday||null,party,thaliCount,reservation_date,start_time,duration,end.date,end.time,language,special_requests),
         env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,free.id)
       ]);
     }catch(e){
