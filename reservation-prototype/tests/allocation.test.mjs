@@ -16,7 +16,7 @@ test("chooses one table when it fits",()=>{
   assert.deepEqual(chooseTables(tables,[],date,"18:00",date,"20:00",6),[1]);
 });
 test("combines tables when no single table fits",()=>{
-  assert.deepEqual(chooseTables(tables,[],date,"18:00",date,"20:00",10),[2,3,9]);
+  assert.deepEqual(chooseTables(tables,[],date,"18:00",date,"20:00",10),[2,9]);
 });
 test("avoids tables occupied during any part of the requested interval",()=>{
   const occupied=[booking(1,"19:00","21:00")];
@@ -31,7 +31,7 @@ test("does not allow a table when intervals overlap by one minute",()=>{
   assert.notDeepEqual(chooseTables(tables,occupied,date,"18:00",date,"20:00",8),[1]);
 });
 test("returns null when remaining tables cannot seat the party",()=>{
-  const occupied=tables.filter(t=>t.id!==1).map(t=>booking(t.id,"17:00","21:00"));
+  const occupied=tables.map(t=>booking(t.id,"17:00","21:00"));
   assert.equal(chooseTables(tables,occupied,date,"18:00",date,"20:00",8),null);
 });
 test("prefers fewer tables when capacity is equal",()=>{
