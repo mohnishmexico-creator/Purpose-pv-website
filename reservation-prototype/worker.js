@@ -2,6 +2,7 @@ import { connect } from "cloudflare:sockets";
 import { chooseTables, overlaps } from "./allocation.mjs";
 import { seatingDuration, weekdayForDate, isArrivalTime } from "./booking-rules.mjs";
 import { thaliRemaining, exceedsThaliLimit } from "./thali-rules.mjs";
+import { validateTableSelection } from "./staff-rules.mjs";
 
 /** Purpose PV reservation API prototype. Test-only. */
 const ACTIVE = "'requested','confirmed','seated'";
@@ -392,14 +393,13 @@ export default {
     if(body.internal_notes!==undefined)
       statements.push(env.DB.prepare("UPDATE reservations SET internal_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(String(body.internal_notes),id));
     if(body.table_ids!==undefined){
-      if(!Array.isArray(body.table_ids)||body.table_ids.length<1||
-        body.table_ids.some(x=>!Number.isInteger(x)||x<1||x>9)||
-        new Set(body.table_ids).size!==body.table_ids.length)
+      const activeTables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1").all();
+      const validation=validateTableSelection(body.table_ids,activeTables.results,current.party_size);
+      if(!validation.ok){
+        if(validation.reason==="insufficient_capacity") return json({error:"The selected active tables do not have enough seats."},409);
+        if(validation.reason==="inactive_or_unknown_table") return json({error:"One or more selected tables are inactive or unavailable."},409);
         return json({error:"table_ids must be a unique list of table numbers 1–9."},400);
-      const marks=body.table_ids.map(()=>"?").join(",");
-      const capacity=await env.DB.prepare(`SELECT COALESCE(SUM(capacity),0) AS seats FROM dining_tables WHERE is_active=1 AND id IN (${marks})`).bind(...body.table_ids).first();
-      if(Number(capacity?.seats||0)<Number(current.party_size))
-        return json({error:"The selected active tables do not have enough seats."},409);
+      }
       statements.push(env.DB.prepare("DELETE FROM reservation_tables WHERE reservation_id=?").bind(id));
       for(const tableId of body.table_ids)
         statements.push(env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId));
