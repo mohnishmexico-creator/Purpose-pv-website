@@ -88,11 +88,22 @@ function base64Utf8(value){
   for(let i=0;i<bytes.length;i+=0x8000) binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
   return btoa(binary);
 }
-async function sendZohoConfirmation(env,reservation){
+function ownerNotificationEmail(r){
+  const rows=[
+    ["Guest",r.guest_name],["Phone",r.phone],["Email",r.guest_email],
+    ["Date",r.reservation_date],["Arrival",r.start_time],
+    ["Guests",String(r.party_size)],["Thalis",String(r.thali_count)],
+    ["À la carte",String(Number(r.party_size)-Number(r.thali_count))],
+    ["Confirmation code",r.confirmation_code]
+  ].map(([k,v])=>`<tr><td style="padding:9px 12px;border-bottom:1px solid #eee8df;color:#625b53;">${escapeHtml(k)}</td><td style="padding:9px 12px;border-bottom:1px solid #eee8df;text-align:right;font-weight:600;">${escapeHtml(v)}</td></tr>`).join("");
+  const content=`<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f6f2eb;padding:24px;color:#26221e;"><table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:auto;background:#fff;border:1px solid #e8dfd3;"><tr><td style="padding:24px;background:#29241f;color:#fff;"><b style="color:#d8bd8a;">PURPOSE PV</b><h2>New reservation confirmed</h2></td></tr><tr><td style="padding:24px;"><table width="100%" cellpadding="0" cellspacing="0">${rows}</table><p style="margin-top:18px;"><b>Special requests:</b><br>${escapeHtml(r.special_requests||"None")}</p></td></tr></table></body></html>`;
+  return {subject:`New reservation · Purpose PV · ${r.confirmation_code}`,content};
+}
+async function sendZohoMail(env,recipient,mail){
   if(!env.ZOHO_SMTP_PASSWORD) return {status:"not_configured"};
   const username=env.ZOHO_SMTP_USER||"info@purposepv.com";
   if(!username.includes("@") || !username.split("@")[1]?.includes(".") ||
-     !(reservation.email||"").includes("@") || !(reservation.email||"").split("@")[1]?.includes("."))
+     !(recipient||"").includes("@") || !(recipient||"").split("@")[1]?.includes("."))
     throw new Error("INVALID_EMAIL_ADDRESS");
   const socket=connect({hostname:"smtppro.zoho.com",port:465},{secureTransport:"on"});
   const reader=socket.readable.getReader(),writer=socket.writable.getWriter();
@@ -124,15 +135,15 @@ async function sendZohoConfirmation(env,reservation){
     await command("EHLO purposepv.com",[250]);
     await command("AUTH PLAIN "+base64Utf8("\0"+username+"\0"+env.ZOHO_SMTP_PASSWORD),[235]);
     await command("MAIL FROM:<"+username+">",[250]);
-    await command("RCPT TO:<"+reservation.email+">",[250,251]);
+    await command("RCPT TO:<"+recipient+">",[250,251]);
     await command("DATA",[354]);
-    const mail=confirmationEmail(reservation);
+    
     const subject="=?UTF-8?B?"+base64Utf8(mail.subject)+"?=";
     const body=base64Utf8(mail.content);
     const lines=body.match(/.{1,76}/g)||[];
     const message=[
       "From: Purpose PV <"+username+">",
-      "To: <"+reservation.email+">",
+      "To: <"+recipient+">",
       "Subject: "+subject,
       "MIME-Version: 1.0",
       "Content-Type: text/html; charset=UTF-8",
@@ -149,6 +160,12 @@ async function sendZohoConfirmation(env,reservation){
     try{await reader.cancel();}catch{}
     try{socket.close();}catch{}
   }
+}
+
+async function sendZohoConfirmation(env,reservation){
+  return sendZohoMail(env,reservation.email,confirmationEmail(reservation));
+}
+
 }
 
 export default {
@@ -245,16 +262,26 @@ export default {
     const emailPayload={guest_name:guest_name.trim(),email:recipient,confirmation_code:code,reservation_date,start_time,
       party_size:party,thali_count:thaliCount,language};
     const sendAndRecord=async()=>{
-      try{
-        const mailResult=await sendZohoConfirmation(env,emailPayload);
-        const status=mailResult.status==="sent"?"sent":"failed";
-        const error=status==="sent"?null:"Zoho credentials are not configured";
-        await env.DB.prepare("UPDATE reservations SET email_status=?,email_error=?,email_sent_at=CASE WHEN ?='sent' THEN CURRENT_TIMESTAMP ELSE email_sent_at END,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-          .bind(status,error,status,id).run();
-      }catch(e){
-        await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-          .bind(String(e?.message||"EMAIL_SEND_FAILED").slice(0,120),id).run();
-      }
+      const ownerPayload={guest_name:guest_name.trim(),guest_email:recipient,phone:phone.trim(),
+        confirmation_code:code,reservation_date,start_time,party_size:party,thali_count:thaliCount,
+        special_requests,language};
+      const guestSend=(async()=>{
+        try{
+          const mailResult=await sendZohoConfirmation(env,emailPayload);
+          const status=mailResult.status==="sent"?"sent":"failed";
+          const error=status==="sent"?null:"Zoho credentials are not configured";
+          await env.DB.prepare("UPDATE reservations SET email_status=?,email_error=?,email_sent_at=CASE WHEN ?='sent' THEN CURRENT_TIMESTAMP ELSE email_sent_at END,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            .bind(status,error,status,id).run();
+        }catch(e){
+          await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            .bind(String(e?.message||"EMAIL_SEND_FAILED").slice(0,120),id).run();
+        }
+      })();
+      const ownerSend=(async()=>{
+        try{ await sendZohoMail(env,"info@purposepv.com",ownerNotificationEmail(ownerPayload)); }
+        catch(e){ console.error("OWNER_NOTIFICATION_FAILED",String(e?.message||e)); }
+      })();
+      await Promise.all([guestSend,ownerSend]);
     };
     if(ctx?.waitUntil) ctx.waitUntil(sendAndRecord());
     else await sendAndRecord();
