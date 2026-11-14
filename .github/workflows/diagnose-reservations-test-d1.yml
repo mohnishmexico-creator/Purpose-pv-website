@@ -1,0 +1,32 @@
+name: Diagnose Purpose reservations test D1 (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out prototype branch
+        uses: actions/checkout@v4
+        with:
+          ref: reservation-system-prototype
+
+      - name: Read test D1 trigger definitions
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name;"
+
+      - name: Read test D1 assignments for table 4
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "SELECT r.id, r.guest_name, r.reservation_date, r.start_time, r.end_date, r.end_time, r.duration_minutes, r.status, rt.table_id FROM reservations r JOIN reservation_tables rt ON rt.reservation_id=r.id WHERE rt.table_id=4 ORDER BY r.reservation_date, r.start_time;"
