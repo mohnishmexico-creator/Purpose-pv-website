@@ -33,6 +33,50 @@ function overlaps(aDate,aStart,aEndDate,aEnd,bDate,bStart,bEndDate,bEnd){
   const b0=Date.parse(bDate+"T"+bStart+"Z"),b1=Date.parse(bEndDate+"T"+bEnd+"Z");
   return a0<b1 && b0<a1;
 }
+
+function escapeHtml(value){
+  return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function confirmationEmail(r){
+  const es=r.language==="es";
+  const date=escapeHtml(r.reservation_date),time=escapeHtml(r.start_time);
+  const name=escapeHtml(r.guest_name),code=escapeHtml(r.confirmation_code);
+  const thali=Number(r.thali_count||0),ala=Number(r.party_size)-thali;
+  const content=es
+    ? `<p>Hola ${name},</p><p>Tu reservación en <strong>Purpose Indian Kitchen</strong> está confirmada.</p><p><strong>Código de confirmación:</strong> ${code}<br><strong>Fecha:</strong> ${date}<br><strong>Hora:</strong> ${time}<br><strong>Personas:</strong> ${r.party_size}</p><p><strong>Thali:</strong> ${thali} · <strong>A la carta:</strong> ${ala}</p><p>Última orden de cocina a las 9:30 pm.</p><p>Roma 193, Versalles, Puerto Vallarta<br>WhatsApp: +52 322 109 0525</p><p>¡Te esperamos!<br>Purpose PV</p>`
+    : `<p>Hello ${name},</p><p>Your reservation at <strong>Purpose Indian Kitchen</strong> is confirmed.</p><p><strong>Confirmation code:</strong> ${code}<br><strong>Date:</strong> ${date}<br><strong>Arrival:</strong> ${time}<br><strong>Guests:</strong> ${r.party_size}</p><p><strong>Thali:</strong> ${thali} · <strong>À la carte:</strong> ${ala}</p><p>Last kitchen order is at 9:30 pm.</p><p>Roma 193, Versalles, Puerto Vallarta<br>WhatsApp: +52 322 109 0525</p><p>We look forward to welcoming you.<br>Purpose PV</p>`;
+  return {subject:es?`Reservación confirmada · Purpose PV · ${code}`:`Reservation confirmed · Purpose PV · ${code}`,content};
+}
+async function sendZohoConfirmation(env,reservation){
+  const required=["ZOHO_CLIENT_ID","ZOHO_CLIENT_SECRET","ZOHO_REFRESH_TOKEN","ZOHO_ACCOUNT_ID"];
+  if(required.some(k=>!env[k])) return {status:"not_configured"};
+  const tokenUrl=new URL("https://accounts.zoho.com/oauth/v2/token");
+  tokenUrl.search=new URLSearchParams({
+    refresh_token:env.ZOHO_REFRESH_TOKEN,
+    client_id:env.ZOHO_CLIENT_ID,
+    client_secret:env.ZOHO_CLIENT_SECRET,
+    grant_type:"refresh_token"
+  }).toString();
+  const tokenRes=await fetch(tokenUrl.toString(),{method:"POST"});
+  const tokenData=await tokenRes.json().catch(()=>({}));
+  if(!tokenRes.ok||!tokenData.access_token) throw new Error("ZOHO_TOKEN_REFRESH_FAILED");
+  const mail=confirmationEmail(reservation);
+  const mailRes=await fetch(`https://mail.zoho.com/api/accounts/${encodeURIComponent(env.ZOHO_ACCOUNT_ID)}/messages`,{
+    method:"POST",
+    headers:{"Authorization":`Zoho-oauthtoken ${tokenData.access_token}`,"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify({
+      fromAddress:"Purpose PV <info@purposepv.com>",
+      toAddress:reservation.email,
+      subject:mail.subject,
+      content:mail.content,
+      mailFormat:"html"
+    })
+  });
+  const mailData=await mailRes.json().catch(()=>({}));
+  if(!mailRes.ok||mailData?.status?.code!==200) throw new Error("ZOHO_SEND_FAILED");
+  return {status:"sent",message_id:mailData?.data?.messageId||null};
+}
+
 export default {
  async fetch(req,env){
   const url=new URL(req.url);
@@ -120,8 +164,28 @@ export default {
       if(String(e).includes("THALI_HOURLY_LIMIT")) return json({error:"Only 12 Thali guests are available in this hour. Please choose another hour or reduce the Thali count."},409);
       return json({error:"Booking could not be saved. Please try again."},500);
     }
+    let emailStatus="not_requested";
+    if(email){
+      await env.DB.prepare("UPDATE reservations SET email_status='pending',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+      try{
+        const mailResult=await sendZohoConfirmation(env,{
+          guest_name:guest_name.trim(),email,confirmation_code:code,reservation_date,start_time,
+          party_size:party,thali_count:thaliCount,language
+        });
+        emailStatus=mailResult.status;
+        if(emailStatus==="sent"){
+          await env.DB.prepare("UPDATE reservations SET email_status='sent',email_sent_at=CURRENT_TIMESTAMP,email_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+        }else{
+          await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error='Zoho credentials are not configured',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+          emailStatus="not_configured";
+        }
+      }catch(e){
+        await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(String(e?.message||"EMAIL_SEND_FAILED").slice(0,120),id).run();
+        emailStatus="failed";
+      }
+    }
     return json({ok:true,confirmation_code:code,date:reservation_date,start_time,end_time:end.time,duration_minutes:duration,
-      thali_count:thaliCount,alacarte_count:party-thaliCount,
+      thali_count:thaliCount,alacarte_count:party-thaliCount,email_status:emailStatus,
       kitchen_last_order:"21:30",guest_note:language==="es"?"Última orden de cocina a las 9:30 pm.":"Last kitchen order at 9:30 pm."},201);
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
