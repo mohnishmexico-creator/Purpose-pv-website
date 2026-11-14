@@ -27,7 +27,7 @@ footer{text-align:center;color:var(--muted);padding:16px;font-size:12px}
 <main>
 <div class="top"><div class="tabs"><button id="guestTab" class="active" onclick="showView('guest')">Guest booking</button><button id="staffTab" onclick="showView('staff')">Staff dashboard</button></div><div class="lang"><button id="enBtn" class="active" onclick="setLang('en')">English</button><button id="esBtn" onclick="setLang('es')">Español</button></div></div>
 <section id="guestView" class="panel">
-<h2 id="guestTitle">Book a table</h2><p class="sub" id="guestSub">Choose your date and party size to see sample availability.</p>
+<h2 id="guestTitle">Book a table</h2><p class="sub" id="guestSub">Choose your date and party size to check availability.</p>
 <div class="notice" id="kitchenNotice">Last kitchen order at 9:30 pm.</div>
 <form id="bookingForm">
 <div class="grid">
@@ -44,7 +44,7 @@ footer{text-align:center;color:var(--muted);padding:16px;font-size:12px}
 <div class="field"><label id="timeLabel">Arrival time</label><select id="time"><option value="17:00">5:00 pm</option><option value="17:30">5:30 pm</option><option value="18:00">6:00 pm</option><option value="18:30">6:30 pm</option><option value="19:00">7:00 pm</option><option value="19:30">7:30 pm</option><option value="20:00">8:00 pm</option><option value="20:30">8:30 pm</option><option value="21:00">9:00 pm</option></select></div>
 <div class="field"><label id="nameLabel">Name</label><input id="name" required placeholder="Your name"></div>
 <div class="field"><label id="phoneLabel">Phone / WhatsApp</label><input id="phone" required placeholder="+52 ..."></div>
-<div class="field"><label id="emailLabel">Email (optional)</label><input id="email" type="email" placeholder="you@example.com"></div>
+<div class="field"><label id="emailLabel">Email address</label><input id="email" type="email" required autocomplete="email" placeholder="you@example.com"></div>
 </div>
 <div class="field" style="margin-top:14px"><label id="requestLabel">Special requests (optional)</label><textarea id="requests" rows="2"></textarea></div>
 <div class="actions"><button class="primary" id="bookBtn" type="submit">Request reservation</button><span class="muted" id="duration">Standard seating: 90 minutes (1–3 guests) / 120 minutes (4–8 guests)</span></div>
@@ -59,7 +59,7 @@ footer{text-align:center;color:var(--muted);padding:16px;font-size:12px}
 </section>
 </main><footer>PRIVATE TEST BOOKING · ISOLATED DATABASE · NOT LIVE BOOKINGS</footer>
 <script>
-const copy={en:{guest:"Guest booking",staff:"Staff dashboard",book:"Book a table",sub:"Choose your date and party size to see sample availability.",notice:"Last kitchen order at 9:30 pm.",date:"Date",party:"Number of guests",time:"Arrival time",name:"Name",phone:"Phone / WhatsApp",email:"Email (optional)",requests:"Special requests (optional)",submit:"Request reservation",duration:"Standard seating: 90 minutes (1–3 guests) / 120 minutes (4–8 guests)",staffsub:"Sample bookings only · changes stay in this browser preview.",confirm:"Sample reservation saved in this preview. No real booking was made.",closed:"Purpose is closed on Mondays.",guestName:"Guest",status:"Confirmed",seat:"Mark seated",done:"Complete",cancel:"Cancel",table:"Table",seats:"seats",walkin:"Walk-in",invalid:"Please complete the required fields."},es:{guest:"Reservar mesa",staff:"Panel del personal",book:"Reservar una mesa",sub:"Elige la fecha y el número de personas para ver disponibilidad de ejemplo.",notice:"Última orden de cocina a las 9:30 pm.",date:"Fecha",party:"Número de personas",time:"Hora de llegada",name:"Nombre",phone:"Teléfono / WhatsApp",email:"Correo (opcional)",requests:"Solicitudes especiales (opcional)",submit:"Solicitar reservación",duration:"Tiempo estándar: 90 minutos (1–3 personas) / 120 minutos (4–8 personas)",staffsub:"Solo reservaciones de ejemplo · los cambios quedan en esta vista previa.",confirm:"Reservación de ejemplo guardada. No se hizo una reservación real.",closed:"Purpose cierra los lunes.",guestName:"Cliente",status:"Confirmada",seat:"Marcar sentado",done:"Completar",cancel:"Cancelar",table:"Mesa",seats:"lugares",walkin:"Sin reservación",invalid:"Completa los campos obligatorios."}};
+const copy={en:{guest:"Guest booking",staff:"Staff dashboard",book:"Book a table",sub:"Choose your date and party size to see sample availability.",notice:"Last kitchen order at 9:30 pm.",date:"Date",party:"Number of guests",time:"Arrival time",name:"Name",phone:"Phone / WhatsApp",email:"Email address",requests:"Special requests (optional)",submit:"Request reservation",duration:"Standard seating: 90 minutes (1–3 guests) / 120 minutes (4–8 guests)",staffsub:"Sample bookings only · changes stay in this browser preview.",confirm:"Sample reservation saved in this preview. No real booking was made.",closed:"Purpose is closed on Mondays.",guestName:"Guest",status:"Confirmed",seat:"Mark seated",done:"Complete",cancel:"Cancel",table:"Table",seats:"seats",walkin:"Walk-in",invalid:"Please complete the required fields."},es:{guest:"Reservar mesa",staff:"Panel del personal",book:"Reservar una mesa",sub:"Elige la fecha y el número de personas para consultar disponibilidad.",notice:"Última orden de cocina a las 9:30 pm.",date:"Fecha",party:"Número de personas",time:"Hora de llegada",name:"Nombre",phone:"Teléfono / WhatsApp",email:"Correo electrónico",requests:"Solicitudes especiales (opcional)",submit:"Solicitar reservación",duration:"Tiempo estándar: 90 minutos (1–3 personas) / 120 minutos (4–8 personas)",staffsub:"Solo reservaciones de ejemplo · los cambios quedan en esta vista previa.",confirm:"Reservación de ejemplo guardada. No se hizo una reservación real.",closed:"Purpose cierra los lunes.",guestName:"Cliente",status:"Confirmada",seat:"Marcar sentado",done:"Completar",cancel:"Cancelar",table:"Mesa",seats:"lugares",walkin:"Sin reservación",invalid:"Completa los campos obligatorios."}};
 let lang='en', bookings=[{time:'17:30',name:'Alex Rivera',party:2,table:4,status:'Confirmed',thali_count:0},{time:'18:00',name:'Jamie Lee',party:4,table:2,status:'Confirmed',thali_count:0},{time:'19:00',name:'Sofia Cruz',party:3,table:5,status:'Seated',thali_count:0}];
 const caps=[8,4,4,2,4,2,4,2,6];
 function t(k){return copy[lang][k]}
@@ -88,7 +88,7 @@ document.getElementById('bookingForm').addEventListener('submit',async e=>{
  const n=document.getElementById('name').value.trim(),ph=document.getElementById('phone').value.trim(),email=document.getElementById('email').value.trim();
  const result=document.getElementById('bookingResult'),btn=document.getElementById('bookBtn');
  const thaliCount=d&&new Date(d+'T12:00:00').getDay()===4?Number(document.getElementById('thaliCount').value||0):0;
- if(!d||!n||!ph){alert(t('invalid'));return}
+ if(!d||!n||!ph||!email||!document.getElementById('email').checkValidity()){alert(t('invalid'));return}
  if(thaliCount>0&&new Date(d+'T12:00:00').getDay()!==4){alert('Thali is available Thursdays only.');return}
  btn.disabled=true;btn.textContent=lang==='es'?'Enviando…':'Submitting…';
  result.style.display='block';result.textContent=lang==='es'?'Comprobando disponibilidad…':'Checking availability…';
@@ -99,13 +99,13 @@ document.getElementById('bookingForm').addEventListener('submit',async e=>{
   if(!availability.available_times.includes(tm)) throw new Error(lang==='es'?'Ese horario ya no está disponible. Elige otro.':'That time is not available. Please choose another time.');
   result.textContent=lang==='es'?'Guardando reservación…':'Saving reservation…';
   const response=await fetch('/api/reservations',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({
-   guest_name:n,phone:ph,email:email||null,party_size:p,thali_count:thaliCount,reservation_date:d,start_time:tm,
+   guest_name:n,phone:ph,email,party_size:p,thali_count:thaliCount,reservation_date:d,start_time:tm,
    language:lang,special_requests:document.getElementById('requests').value.trim()||null
   })});
   const data=await response.json();
   if(!response.ok||!data.ok) throw new Error(data.error||'Reservation failed');
   const emailText=data.email_status==='sent'?(lang==='es'?'Correo de confirmación enviado.':'Confirmation email sent.')
-   :data.email_status==='not_requested'?(lang==='es'?'No se solicitó correo.':'No email was requested.')
+   :data.email_status==='queued'?(lang==='es'?'El correo de confirmación se está enviando.':'Confirmation email is being sent.')
    :(lang==='es'?'Estado del correo: '+data.email_status+'.':'Email status: '+data.email_status+'.');
   result.innerHTML='<strong>'+(lang==='es'?'Reservación guardada':'Reservation saved')+'</strong><br>'+
    (lang==='es'?'Código de confirmación: ':'Confirmation code: ')+data.confirmation_code+'<br>'+
