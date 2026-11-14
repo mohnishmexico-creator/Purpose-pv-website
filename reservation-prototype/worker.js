@@ -233,6 +233,34 @@ export default {
     const r=await env.DB.prepare("SELECT id,capacity,is_active,staff_notes FROM dining_tables ORDER BY id").all();
     return json({tables:r.results});
   }
+  if(url.pathname==="/api/admin/walkins"&&req.method==="POST"){
+    if(!await isAdmin(req,env))return json({error:"Unauthorized"},401);
+    if(!sameOrigin(req))return json({error:"Invalid origin."},403);
+    let body;try{body=await req.json()}catch{return json({error:"Invalid JSON."},400)}
+    const party=Number(body.party_size),thali=Number(body.thali_count||0),date=body.reservation_date,time=body.start_time;
+    const name=String(body.guest_name||"Walk-in").trim(),phone=String(body.phone||"").trim();
+    if(!validDate(date)||!validTime(time)||!Number.isInteger(party)||party<1||party>8||
+       !Number.isInteger(thali)||thali<0||thali>party||time<"17:00"||time>"21:00")
+      return json({error:"Provide a valid date, arrival time, party size (1–8) and Thali count."},400);
+    const weekday=new Date(date+"T12:00:00Z").getUTCDay();
+    if(weekday===1)return json({error:"Purpose is closed on Mondays."},400);
+    if(thali>0&&weekday!==4)return json({error:"Thali is available Thursdays only."},400);
+    const duration=seatingDuration(party,time),end=addMinutes(date,time,duration);
+    const all=await assignedBookings(env.DB,date,end.date);
+    const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY capacity,id").all();
+    const free=tables.results.find(t=>t.capacity>=party&&!all.some(b=>b.table_id===t.id&&overlaps(date,time,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
+    if(!free)return json({error:"No table is available for that time."},409);
+    try{
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO reservations
+          (id,confirmation_code,guest_name,phone,email,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language)
+          VALUES (?,?,?,?,NULL,?,?,?,?,?,?,?,'seated','walk_in','en')`)
+          .bind(crypto.randomUUID(),crypto.randomUUID().slice(0,8).toUpperCase(),name,phone,party,thali,date,time,duration,end.date,end.time),
+        env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) SELECT id,? FROM reservations WHERE confirmation_code=(SELECT confirmation_code FROM reservations ORDER BY created_at DESC LIMIT 1)").bind(free.id)
+      ]);
+    }catch(e){return json({error:String(e).includes("THALI_HOURLY_LIMIT")?"This would exceed the 12 Thali guests per hour limit.":"Walk-in could not be saved; check availability and try again."},409)}
+    return json({ok:true,message:"Walk-in added and marked seated."},201);
+  }
   if(url.pathname==="/api/availability" && req.method==="GET"){
     const date=url.searchParams.get("date"),party=Number(url.searchParams.get("party_size"));
     const thaliCount=Number(url.searchParams.get("thali_count")||0);
