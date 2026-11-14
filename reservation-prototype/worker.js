@@ -44,9 +44,42 @@ function confirmationEmail(r){
   const date=escapeHtml(r.reservation_date),time=escapeHtml(r.start_time);
   const name=escapeHtml(r.guest_name),code=escapeHtml(r.confirmation_code);
   const thali=Number(r.thali_count||0),ala=Number(r.party_size)-thali;
-  const content=es
-    ? `<p>Hola ${name},</p><p>Tu reservación en <strong>Purpose Indian Kitchen</strong> está confirmada.</p><p><strong>Código de confirmación:</strong> ${code}<br><strong>Fecha:</strong> ${date}<br><strong>Hora:</strong> ${time}<br><strong>Personas:</strong> ${r.party_size}</p><p><strong>Thali:</strong> ${thali} · <strong>A la carta:</strong> ${ala}</p><p>Última orden de cocina a las 9:30 pm.</p><p>Roma 193, Versalles, Puerto Vallarta<br>WhatsApp: +52 322 109 0525</p><p>¡Te esperamos!<br>Purpose PV</p>`
-    : `<p>Hello ${name},</p><p>Your reservation at <strong>Purpose Indian Kitchen</strong> is confirmed.</p><p><strong>Confirmation code:</strong> ${code}<br><strong>Date:</strong> ${date}<br><strong>Arrival:</strong> ${time}<br><strong>Guests:</strong> ${r.party_size}</p><p><strong>Thali:</strong> ${thali} · <strong>À la carte:</strong> ${ala}</p><p>Last kitchen order is at 9:30 pm.</p><p>Roma 193, Versalles, Puerto Vallarta<br>WhatsApp: +52 322 109 0525</p><p>We look forward to welcoming you.<br>Purpose PV</p>`;
+  const label=(en,spanish)=>es?spanish:en;
+  const greeting=es?"Hola":"Hello";
+  const intro=es
+    ?"Tu reservación en Purpose Indian Kitchen está confirmada."
+    :"Your reservation at Purpose Indian Kitchen is confirmed.";
+  const details=es?[
+    ["Código de confirmación",code],["Fecha",date],["Hora de llegada",time],["Personas",String(r.party_size)]
+  ]:[
+    ["Confirmation code",code],["Date",date],["Arrival",time],["Guests",String(r.party_size)]
+  ];
+  const rows=details.map(([k,v],i)=>`<tr><td style="padding:10px 12px;border-bottom:1px solid #eee8df;color:#625b53;font-size:14px;">${k}</td><td style="padding:10px 12px;border-bottom:1px solid #eee8df;text-align:right;color:#26221e;font-size:14px;font-weight:600;word-break:break-word;">${v}</td></tr>`).join("");
+  const closing=es?"¡Te esperamos!":"We look forward to welcoming you.";
+  const kitchen=es?"Última orden de cocina a las 9:30 pm.":"Last kitchen order is at 9:30 pm.";
+  const address="Roma 193, Versalles, Puerto Vallarta";
+  const contact="WhatsApp: +52 322 109 0525";
+  const content=`<!doctype html><html><body style="margin:0;padding:24px 12px;background:#f6f2eb;font-family:Arial,Helvetica,sans-serif;color:#26221e;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e8dfd3;border-radius:8px;">
+      <tr><td style="padding:28px 24px 20px;text-align:center;background:#29241f;border-radius:8px 8px 0 0;">
+        <div style="font-size:11px;letter-spacing:3px;color:#d8bd8a;font-weight:700;">PURPOSE PV</div>
+        <div style="font-size:23px;line-height:1.3;color:#fff;margin-top:8px;font-weight:600;">Purpose Indian Kitchen</div>
+        <div style="font-size:13px;color:#e7ddd0;margin-top:6px;">${label("Reservation confirmation","Confirmación de reservación")}</div>
+      </td></tr>
+      <tr><td style="padding:26px 24px 8px;font-size:15px;line-height:1.6;">
+        <p style="margin:0 0 10px;">${greeting} ${name},</p>
+        <p style="margin:0 0 18px;">${intro}</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eee8df;border-radius:6px;border-collapse:separate;">
+          ${rows}
+        </table>
+        <p style="margin:18px 0 6px;font-size:14px;line-height:1.6;"><strong>${label("Thali","Thali")}:</strong> ${thali} &nbsp;·&nbsp; <strong>${label("À la carte","A la carta")}:</strong> ${ala}</p>
+        <p style="margin:14px 0 0;font-size:13px;line-height:1.6;color:#625b53;">${kitchen}</p>
+        <p style="margin:16px 0 0;font-size:14px;line-height:1.7;">${address}<br>${contact}</p>
+        <p style="margin:22px 0 0;font-size:15px;line-height:1.6;">${closing}<br><strong>Purpose PV</strong></p>
+      </td></tr>
+      <tr><td style="padding:16px 24px;text-align:center;background:#faf8f4;border-top:1px solid #eee8df;border-radius:0 0 8px 8px;font-size:11px;color:#81786e;">${label("Thank you for choosing Purpose.","Gracias por elegir Purpose.")}</td></tr>
+    </table>
+    </body></html>`;
   return {subject:es?`Reservación confirmada · Purpose PV · ${code}`:`Reservation confirmed · Purpose PV · ${code}`,content};
 }
 function base64Utf8(value){
