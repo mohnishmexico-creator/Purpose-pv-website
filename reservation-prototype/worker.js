@@ -269,7 +269,7 @@ export default {
           VALUES (?,?,?,?,NULL,?,?,?,?,?,?,?,'seated','walk_in','en')`)
           .bind(id,code,name,phone,party,thali,date,time,duration,end.date,end.time),
         ...tableIds.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))
-      ]);    }catch(e){return json({error:String(e).includes("THALI_HOURLY_LIMIT")?"This would exceed the 12 Thali guests per hour limit.":"Walk-in could not be saved; check availability and try again."},409)}
+      ]);    }catch(e){console.error("Walk-in save failed:",e);const detail=String(e?.message||e||"Unknown database error");return json({error:detail.includes("THALI_HOURLY_LIMIT")?"This would exceed the 12 Thali guests per hour limit.":"Walk-in could not be saved.",debug_error:detail},409)}
     return json({ok:true,message:"Walk-in added and marked seated."},201);
   }
   if(url.pathname==="/api/availability" && req.method==="GET"){
