@@ -122,6 +122,8 @@ export default {
  async fetch(req,env){
   const url=new URL(req.url);
   if(req.method==="OPTIONS") return json({ok:true});
+  if(req.method==="GET" && (url.pathname==="/" || url.pathname==="/index.html") && env.ASSETS)
+    return env.ASSETS.fetch(new Request(new URL("/index.html",req.url),req));
   if(!env.DB) return json({error:"D1 binding DB is not configured."},503);
   if(url.pathname==="/api/health" && req.method==="GET")
     return json({ok:true,service:"purpose-reservations",mode:"private-prototype"});
