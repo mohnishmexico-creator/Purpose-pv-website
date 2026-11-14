@@ -1,0 +1,24 @@
+name: Apply Purpose reservations email migration (test only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out prototype branch
+        uses: actions/checkout@v4
+        with:
+          ref: reservation-system-prototype
+
+      - name: Apply email tracking columns to isolated test database
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --file=migrations/0004_email_delivery.sql
