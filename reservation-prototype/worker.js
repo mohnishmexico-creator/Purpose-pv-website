@@ -1,6 +1,7 @@
 import { connect } from "cloudflare:sockets";
 import { chooseTables, overlaps } from "./allocation.mjs";
 import { seatingDuration, weekdayForDate, isArrivalTime } from "./booking-rules.mjs";
+import { thaliRemaining, exceedsThaliLimit } from "./thali-rules.mjs";
 
 /** Purpose PV reservation API prototype. Test-only. */
 const ACTIVE = "'requested','confirmed','seated'";
@@ -293,9 +294,9 @@ export default {
       if(isThursday&&thaliCount>0){
         const hour=t.slice(0,2);
         const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(date,hour).first();
-        const remaining=Math.max(0,12-(used?.used||0));
+        const remaining=thaliRemaining(used?.used||0);
         thali_remaining[hour]=remaining;
-        if(remaining<thaliCount) continue;
+        if(exceedsThaliLimit(used?.used||0,thaliCount)) continue;
       }
       available_times.push(t);
     }
@@ -325,7 +326,7 @@ export default {
     if(!tableIds) return json({error:"No table combination is available at that time. Please choose another time."},409);
     if(weekday===4&&thaliCount>0){
       const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(reservation_date,start_time.slice(0,2)).first();
-      if((used?.used||0)+thaliCount>12) return json({error:"Only 12 Thali guests are available in this hour. Please reduce the Thali count or choose another hour."},409);
+      if(exceedsThaliLimit(used?.used||0,thaliCount)) return json({error:"Only 12 Thali guests are available in this hour. Please reduce the Thali count or choose another hour."},409);
     }
     const id=crypto.randomUUID(),code=crypto.randomUUID().slice(0,8).toUpperCase();
     try{
