@@ -1,0 +1,10 @@
+name = "purpose-reservations-test"
+main = "worker.js"
+compatibility_date = "2026-11-14"
+account_id = "2541ff27a2bb36f951d9b3c6fbc0045a"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "purpose-reservations-test-db"
+database_id = "b4ae5d59-805c-46cf-b45b-463332b1b0db"
