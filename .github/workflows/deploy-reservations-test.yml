@@ -21,4 +21,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "reservation-prototype"
-          command: deploy
+          command: d1 execute purpose-reservations-test-db --remote --command "ALTER TABLE reservations ADD COLUMN birthday TEXT; CREATE INDEX IF NOT EXISTS idx_reservations_birthday ON reservations(birthday);" && deploy
