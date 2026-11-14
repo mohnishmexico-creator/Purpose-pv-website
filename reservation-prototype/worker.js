@@ -18,8 +18,7 @@ function seatingDuration(party,time){
 }
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{
   "content-type":"application/json; charset=utf-8","cache-control":"no-store",
-  "access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PATCH,OPTIONS",
-  "access-control-allow-headers":"content-type,authorization"
+  "x-content-type-options":"nosniff","referrer-policy":"no-referrer"
 }});}
 function b64url(bytes){let s="";for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");}
 async function signSession(payload,secret){
@@ -36,7 +35,7 @@ async function isAdmin(req,env){
  if(signature!==expected)return false;
  try{const data=JSON.parse(atob(payload.replace(/-/g,"+").replace(/_/g,"/")));return data.exp>Date.now()&&data.role==="staff";}catch{return false;}
 }
-function sameOrigin(req){const origin=req.headers.get("origin");return !origin||origin===new URL(req.url).origin;}
+function sameOrigin(req){const origin=req.headers.get("origin");return !!origin&&origin===new URL(req.url).origin;}
 async function assignedBookings(db,date,endDate){
   const r=await db.prepare(`
     SELECT rt.table_id,r.reservation_date,r.start_time,r.end_date,r.end_time,r.status
@@ -197,12 +196,14 @@ export default {
     let body;try{body=await req.json()}catch{return json({error:"Invalid JSON."},400)}
     if(typeof body.password!=="string"||body.password.length>256||body.password!==env.ADMIN_PASSWORD)
       return json({error:"Incorrect password."},401);
-    const payload=btoa(JSON.stringify({role:"staff",exp:Date.now()+8*60*60*1000})).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");
+    const payload=b64url(new TextEncoder().encode(JSON.stringify({role:"staff",exp:Date.now()+8*60*60*1000})));
     const signature=await signSession(payload,env.ADMIN_SESSION_SECRET);
     return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":`purpose_staff=${payload}.${signature}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800`}});
   }
-  if(url.pathname==="/api/admin/logout"&&req.method==="POST")
+  if(url.pathname==="/api/admin/logout"&&req.method==="POST"){
+    if(!sameOrigin(req))return json({error:"Invalid origin."},403);
     return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","set-cookie":"purpose_staff=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"}});
+  }
   if(url.pathname==="/api/admin/session"&&req.method==="GET")
     return json({authenticated:await isAdmin(req,env)});
   if(url.pathname==="/api/health" && req.method==="GET")
@@ -370,6 +371,7 @@ export default {
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
     if(!await isAdmin(req,env)) return json({error:"Unauthorized"},401);
+    if(!sameOrigin(req))return json({error:"Invalid origin."},403);
     const id=url.pathname.split("/").pop();
     if(!id || id.includes("/")) return json({error:"Invalid reservation id."},400);
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
