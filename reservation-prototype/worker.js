@@ -51,6 +51,23 @@ function overlaps(aDate,aStart,aEndDate,aEnd,bDate,bStart,bEndDate,bEnd){
   return a0<b1 && b0<a1;
 }
 
+function chooseTables(tables,bookings,date,start,endDate,endTime,party){
+  const free=tables.filter(t=>!bookings.some(b=>b.table_id===t.id&&
+    overlaps(date,start,endDate,endTime,b.reservation_date,b.start_time,b.end_date,b.end_time)));
+  // Search every subset (nine tables maximum); prefer least unused capacity,
+  // then fewer tables, then stable table-number order.
+  let best=null;
+  for(let mask=1;mask<(1<<free.length);mask++){
+    let seats=0,ids=[];
+    for(let i=0;i<free.length;i++) if(mask&(1<<i)){seats+=Number(free[i].capacity);ids.push(Number(free[i].id));}
+    if(seats<party) continue;
+    ids.sort((a,b)=>a-b);
+    if(!best||seats<best.seats||(seats===best.seats&&ids.length<best.ids.length)||
+      (seats===best.seats&&ids.length===best.ids.length&&ids.join(",")<best.ids.join(",")))
+      best={seats,ids};
+  }
+  return best?.ids||null;
+}
 function escapeHtml(value){
   return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
@@ -264,9 +281,9 @@ export default {
     if(thali>0&&weekday!==4)return json({error:"Thali is available Thursdays only."},400);
     const duration=seatingDuration(party,time),end=addMinutes(date,time,duration);
     const all=await assignedBookings(env.DB,date,end.date);
-    const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY capacity,id").all();
-    const free=tables.results.find(t=>t.capacity>=party&&!all.some(b=>b.table_id===t.id&&overlaps(date,time,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
-    if(!free)return json({error:"No table is available for that time."},409);
+    const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
+    const tableIds=chooseTables(tables.results,all,date,time,end.date,end.time,party);
+    if(!tableIds)return json({error:"No table combination is available for that time."},409);
     const id=crypto.randomUUID(),code=crypto.randomUUID().slice(0,8).toUpperCase();
     try{
       await env.DB.batch([
@@ -274,7 +291,7 @@ export default {
           (id,confirmation_code,guest_name,phone,email,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language)
           VALUES (?,?,?,?,NULL,?,?,?,?,?,?,?,'seated','walk_in','en')`)
           .bind(id,code,name,phone,party,thali,date,time,duration,end.date,end.time),
-        env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,free.id)
+        ...tableIds.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))
       ]);    }catch(e){return json({error:String(e).includes("THALI_HOURLY_LIMIT")?"This would exceed the 12 Thali guests per hour limit.":"Walk-in could not be saved; check availability and try again."},409)}
     return json({ok:true,message:"Walk-in added and marked seated."},201);
   }
@@ -289,7 +306,7 @@ export default {
     if(weekday===1) return json({date,party_size:party,available_times:[],message:"Closed Mondays."});
     const isThursday=weekday===4;
     if(thaliCount>0&&!isThursday) return json({error:"Thali reservations are available on Thursdays only."},400);
-    const eligible=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 AND capacity>=? ORDER BY capacity,id").bind(party).all();
+    const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
     const all=await assignedBookings(env.DB,date,date);
     const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00"];
     const available_times=[];
@@ -297,9 +314,7 @@ export default {
     for(const t of times){
       const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
       if(end.date!==date || (t!=="21:00" && end.time>"22:00")) continue;
-      const tableFree=eligible.results.some(table=>!all.some(b=>b.table_id===table.id &&
-        overlaps(date,t,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
-      if(!tableFree) continue;
+      if(!chooseTables(tables.results,all,date,t,end.date,end.time,party)) continue;
       if(isThursday&&thaliCount>0){
         const hour=t.slice(0,2);
         const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(date,hour).first();
@@ -329,12 +344,10 @@ export default {
     const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
     if(end.date!==reservation_date||(start_time!=="21:00"&&end.time>"22:00"))
       return json({error:"Choose an available arrival time."},400);
-    const eligible=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 AND capacity>=? ORDER BY capacity,id").bind(party).all();
-    if(!eligible.results.length) return json({error:"No configured table can seat this party yet. Please contact Purpose."},409);
+    const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
     const all=await assignedBookings(env.DB,reservation_date,end.date);
-    const free=eligible.results.find(t=>!all.some(b=>b.table_id===t.id &&
-      overlaps(reservation_date,start_time,end.date,end.time,b.reservation_date,b.start_time,b.end_date,b.end_time)));
-    if(!free) return json({error:"No table is available at that time. Please choose another time."},409);
+    const tableIds=chooseTables(tables.results,all,reservation_date,start_time,end.date,end.time,party);
+    if(!tableIds) return json({error:"No table combination is available at that time. Please choose another time."},409);
     if(weekday===4&&thaliCount>0){
       const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(reservation_date,start_time.slice(0,2)).first();
       if((used?.used||0)+thaliCount>12) return json({error:"Only 12 Thali guests are available in this hour. Please reduce the Thali count or choose another hour."},409);
@@ -346,7 +359,7 @@ export default {
           (id,confirmation_code,guest_name,phone,email,birthday,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language,special_requests)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'confirmed','online',?,?)`)
           .bind(id,code,guest_name.trim(),phone.trim(),email,birthday||null,party,thaliCount,reservation_date,start_time,duration,end.date,end.time,language,special_requests),
-        env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,free.id)
+        ...tableIds.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))
       ]);
     }catch(e){
       if(String(e).includes("TABLE_TIME_CONFLICT")) return json({error:"That table was just booked. Please choose another time."},409);
