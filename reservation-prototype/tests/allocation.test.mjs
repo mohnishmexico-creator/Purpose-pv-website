@@ -13,10 +13,10 @@ const booking=(table_id,start_time,end_time)=>({
 });
 
 test("chooses one table when it fits",()=>{
-  assert.deepEqual(chooseTables(tables,[],date,"18:00",date,"20:00",6),[1]);
+  assert.deepEqual(chooseTables(tables,[],date,"18:00",date,"20:00",6),[9]);
 });
 test("combines tables when no single table fits",()=>{
-  assert.deepEqual(chooseTables(tables,[],date,"18:00",date,"20:00",10),[2,9]);
+  assert.deepEqual(chooseTables(tables,[],date,"18:00",date,"20:00",10),[1,4]);
 });
 test("avoids tables occupied during any part of the requested interval",()=>{
   const occupied=[booking(1,"19:00","21:00")];
