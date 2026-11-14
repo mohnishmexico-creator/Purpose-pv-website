@@ -20,7 +20,7 @@ function json(data,status=200){return new Response(JSON.stringify(data),{status,
   "content-type":"application/json; charset=utf-8","cache-control":"no-store",
   "x-content-type-options":"nosniff","referrer-policy":"no-referrer"
 }});}
-function b64url(bytes){let s="";for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");}
+function b64url(bytes){let s="";for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replaceAll("+","-").replaceAll("/","_");}
 async function signSession(payload,secret){
  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
  return b64url(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload)));
@@ -33,7 +33,7 @@ async function isAdmin(req,env){
  if(!payload||!signature)return false;
  const expected=await signSession(payload,env.ADMIN_SESSION_SECRET);
  if(signature!==expected)return false;
- try{const data=JSON.parse(atob(payload.replace(/-/g,"+").replace(/_/g,"/")));return data.exp>Date.now()&&data.role==="staff";}catch{return false;}
+ try{const data=JSON.parse(atob(payload.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-payload.length%4)%4)));return data.exp>Date.now()&&data.role==="staff";}catch{return false;}
 }
 function sameOrigin(req){const origin=req.headers.get("origin");return !!origin&&origin===new URL(req.url).origin;}
 async function assignedBookings(db,date,endDate){
