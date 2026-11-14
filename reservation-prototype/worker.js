@@ -21,7 +21,22 @@ function json(data,status=200){return new Response(JSON.stringify(data),{status,
   "access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,PATCH,OPTIONS",
   "access-control-allow-headers":"content-type,authorization"
 }});}
-function isAdmin(req,env){return !!env.ADMIN_TOKEN && req.headers.get("authorization")===`Bearer ${env.ADMIN_TOKEN}`;}
+function b64url(bytes){let s="";for(const b of new Uint8Array(bytes))s+=String.fromCharCode(b);return btoa(s).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");}
+async function signSession(payload,secret){
+ const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+ return b64url(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload)));
+}
+async function isAdmin(req,env){
+ if(!env.ADMIN_SESSION_SECRET)return false;
+ const cookie=req.headers.get("cookie")||"",m=cookie.match(/(?:^|; )purpose_staff=([^;]+)/);
+ if(!m)return false;
+ const [payload,signature]=decodeURIComponent(m[1]).split(".");
+ if(!payload||!signature)return false;
+ const expected=await signSession(payload,env.ADMIN_SESSION_SECRET);
+ if(signature!==expected)return false;
+ try{const data=JSON.parse(atob(payload.replace(/-/g,"+").replace(/_/g,"/")));return data.exp>Date.now()&&data.role==="staff";}catch{return false;}
+}
+function sameOrigin(req){const origin=req.headers.get("origin");return !origin||origin===new URL(req.url).origin;}
 async function assignedBookings(db,date,endDate){
   const r=await db.prepare(`
     SELECT rt.table_id,r.reservation_date,r.start_time,r.end_date,r.end_time,r.status
@@ -171,13 +186,29 @@ export default {
  async fetch(req,env,ctx){
   const url=new URL(req.url);
   if(req.method==="OPTIONS") return json({ok:true});
+  if(req.method==="GET" && url.pathname==="/staff" && env.ASSETS)
+    return env.ASSETS.fetch(new Request(new URL("/staff.html",req.url),req));
   if(req.method==="GET" && (url.pathname==="/" || url.pathname==="/index.html") && env.ASSETS)
     return env.ASSETS.fetch(new Request(new URL("/index.html",req.url),req));
   if(!env.DB) return json({error:"D1 binding DB is not configured."},503);
+  if(url.pathname==="/api/admin/login"&&req.method==="POST"){
+    if(!sameOrigin(req))return json({error:"Invalid origin."},403);
+    if(!env.ADMIN_PASSWORD||!env.ADMIN_SESSION_SECRET)return json({error:"Staff login is not configured."},503);
+    let body;try{body=await req.json()}catch{return json({error:"Invalid JSON."},400)}
+    if(typeof body.password!=="string"||body.password.length>256||body.password!==env.ADMIN_PASSWORD)
+      return json({error:"Incorrect password."},401);
+    const payload=btoa(JSON.stringify({role:"staff",exp:Date.now()+8*60*60*1000})).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");
+    const signature=await signSession(payload,env.ADMIN_SESSION_SECRET);
+    return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","cache-control":"no-store","set-cookie":`purpose_staff=${payload}.${signature}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800`}});
+  }
+  if(url.pathname==="/api/admin/logout"&&req.method==="POST")
+    return new Response(JSON.stringify({ok:true}),{headers:{"content-type":"application/json","set-cookie":"purpose_staff=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0"}});
+  if(url.pathname==="/api/admin/session"&&req.method==="GET")
+    return json({authenticated:await isAdmin(req,env)});
   if(url.pathname==="/api/health" && req.method==="GET")
     return json({ok:true,service:"purpose-reservations",mode:"private-prototype"});
   if(url.pathname==="/api/admin/reservations" && req.method==="GET"){
-    if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
+    if(!await isAdmin(req,env)) return json({error:"Unauthorized"},401);
     const date=url.searchParams.get("date");
     const from=url.searchParams.get("from")||date;
     const to=url.searchParams.get("to")||date;
