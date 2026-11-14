@@ -106,7 +106,7 @@ async function sendZohoConfirmation(env,reservation){
       "Content-Transfer-Encoding: base64",
       "",
       ...lines
-    ].join("\r\n").replace(/(^|\r\n)\\./g,"$1..");
+    ].join("\r\n").replace(/(^|\r\n)\./g,"$1..");
     await writer.write(new TextEncoder().encode(message+"\r\n.\r\n"));
     if(await reply()!==250) throw new Error("SMTP_MESSAGE_REJECTED");
     await command("QUIT",[221]);
