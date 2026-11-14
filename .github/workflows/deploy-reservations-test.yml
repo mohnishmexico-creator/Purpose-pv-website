@@ -22,13 +22,21 @@ jobs:
         run: node --test tests/*.test.mjs
         working-directory: reservation-prototype
 
-      - name: Apply idempotent staff login throttle migration to test D1
+      - name: Rebuild reservation overlap guards on test D1
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "reservation-prototype"
-          command: d1 execute purpose-reservations-test-db --remote --file=migrations/0005_staff_login_throttle.sql
+          command: d1 execute purpose-reservations-test-db --remote --file=migrations/0006_rebuild_conflict_guards.sql
+
+      - name: Verify test D1 overlap guard definitions
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "SELECT name, sql FROM sqlite_master WHERE type='trigger' AND name IN ('prevent_overlapping_table_assignment','prevent_reactivating_conflicting_reservation') ORDER BY name;"
 
       - name: Deploy isolated test Worker
         uses: cloudflare/wrangler-action@v3
