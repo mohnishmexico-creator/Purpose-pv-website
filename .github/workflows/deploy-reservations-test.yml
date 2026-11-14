@@ -15,14 +15,6 @@ jobs:
         with:
           ref: reservation-system-prototype
 
-      - name: Apply birthday migration to isolated test database
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
-          workingDirectory: "reservation-prototype"
-          command: d1 execute purpose-reservations-test-db --remote --file migrations/0003_guest_birthday.sql
-
       - name: Deploy isolated test Worker
         uses: cloudflare/wrangler-action@v3
         with:
