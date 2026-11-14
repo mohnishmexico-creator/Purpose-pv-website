@@ -11,6 +11,7 @@ function addMinutes(date,time,minutes){
 }
 function validDate(s){return /^\d{4}-\d{2}-\d{2}$/.test(s||"") && !Number.isNaN(Date.parse(s+"T12:00:00Z"));}
 function validTime(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||"");}
+function validBirthday(s){ if(s==null||s==="") return true; if(!/^\d{2}-\d{2}$/.test(s)) return false; const [m,d]=s.split("-").map(Number); const dt=new Date(Date.UTC(2000,m-1,d)); return dt.getUTCMonth()===m-1 && dt.getUTCDate()===d; }
 function seatingDuration(party,time){
   if(time==="21:00") return party<=3?60:90;
   return party<=3?90:120;
@@ -217,11 +218,11 @@ export default {
   }
   if(url.pathname==="/api/reservations" && req.method==="POST"){
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
-    const {guest_name,phone,email,party_size,reservation_date,start_time,language="en",special_requests=null}=body||{};
+    const {guest_name,phone,email,party_size,reservation_date,start_time,language="en",special_requests=null,birthday=null}=body||{};
     const party=Number(party_size),thaliCount=Number(body?.thali_count||0);
     if(!guest_name?.trim()||!phone?.trim()||!email?.trim()||!/^\S+@\S+\.\S+$/.test(email.trim())||!Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
-       !validDate(reservation_date)||!validTime(start_time)||!["en","es"].includes(language))
+       !validDate(reservation_date)||!validTime(start_time)||!validBirthday(birthday)||!["en","es"].includes(language))
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
     const weekday=new Date(reservation_date+"T12:00:00Z").getUTCDay();
     if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
