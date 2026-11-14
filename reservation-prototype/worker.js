@@ -67,10 +67,10 @@ async function sendZohoConfirmation(env,reservation){
   let buffer="";
   async function reply(){
     while(true){
-      const end=buffer.search(/\\r?\\n/);
+      const end=buffer.search(/\r?\n/);
       if(end>=0){
         const line=buffer.slice(0,end);
-        buffer=buffer.slice(end+(buffer.slice(end).startsWith("\\r\\n")?2:1));
+        buffer=buffer.slice(end+(buffer.slice(end).startsWith("\r\n")?2:1));
         const match=line.match(/^(\\d{3})([ -])(.*)$/);
         if(match&&match[2]===" ") return Number(match[1]);
         continue;
@@ -81,7 +81,7 @@ async function sendZohoConfirmation(env,reservation){
     }
   }
   async function command(line,expected){
-    await writer.write(new TextEncoder().encode(line+"\\r\\n"));
+    await writer.write(new TextEncoder().encode(line+"\r\n"));
     const status=await reply();
     if(!expected.includes(status)) throw new Error("SMTP_COMMAND_FAILED_"+status);
     return status;
@@ -89,7 +89,7 @@ async function sendZohoConfirmation(env,reservation){
   try{
     if(await reply()!==220) throw new Error("SMTP_GREETING_FAILED");
     await command("EHLO purposepv.com",[250]);
-    await command("AUTH PLAIN "+base64Utf8("\\0"+username+"\\0"+env.ZOHO_SMTP_PASSWORD),[235]);
+    await command("AUTH PLAIN "+base64Utf8("\0"+username+"\0"+env.ZOHO_SMTP_PASSWORD),[235]);
     await command("MAIL FROM:<"+username+">",[250]);
     await command("RCPT TO:<"+reservation.email+">",[250,251]);
     await command("DATA",[354]);
@@ -106,8 +106,8 @@ async function sendZohoConfirmation(env,reservation){
       "Content-Transfer-Encoding: base64",
       "",
       ...lines
-    ].join("\\r\\n").replace(/(^|\\r\\n)\\./g,"$1..");
-    await writer.write(new TextEncoder().encode(message+"\\r\\n.\\r\\n"));
+    ].join("\r\n").replace(/(^|\r\n)\\./g,"$1..");
+    await writer.write(new TextEncoder().encode(message+"\r\n.\r\n"));
     if(await reply()!==250) throw new Error("SMTP_MESSAGE_REJECTED");
     await command("QUIT",[221]);
     return {status:"sent"};
