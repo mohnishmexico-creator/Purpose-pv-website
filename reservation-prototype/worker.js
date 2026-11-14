@@ -229,7 +229,7 @@ export default {
     return json({reservations:rows.results.map(r=>({...r,table_ids:r.table_ids?r.table_ids.split(",").map(Number):[]}))});
   }
   if(url.pathname==="/api/tables" && req.method==="GET"){
-    if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
+    if(!await isAdmin(req,env)) return json({error:"Unauthorized"},401);
     const r=await env.DB.prepare("SELECT id,capacity,is_active,staff_notes FROM dining_tables ORDER BY id").all();
     return json({tables:r.results});
   }
@@ -369,7 +369,7 @@ export default {
       kitchen_last_order:"21:30",guest_note:language==="es"?"Última orden de cocina a las 9:30 pm.":"Last kitchen order at 9:30 pm."},201);
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
-    if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
+    if(!await isAdmin(req,env)) return json({error:"Unauthorized"},401);
     const id=url.pathname.split("/").pop();
     if(!id || id.includes("/")) return json({error:"Invalid reservation id."},400);
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
