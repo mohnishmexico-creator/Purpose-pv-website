@@ -20,18 +20,20 @@ jobs:
         with:
           ref: reservation-system-prototype
 
-      - name: Verify Cloudflare API token
+      - name: Verify token format and apply email tracking migration
+        working-directory: reservation-prototype
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RAW_CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 2541ff27a2bb36f951d9b3c6fbc0045a
         run: |
-          response=$(curl -sS https://api.cloudflare.com/client/v4/user/tokens/verify -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")
-          echo "$response" | jq '{success: .success, errors: .errors, status: .result.status}'
-          test "$(echo "$response" | jq -r .success)" = "true"
-
-      - name: Apply email tracking columns to isolated test database
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
-          workingDirectory: "reservation-prototype"
-          command: d1 execute purpose-reservations-test-db --remote --file=migrations/0004_email_delivery.sql
+          set -euo pipefail
+          TOKEN="$(printf '%s' "$RAW_CLOUDFLARE_API_TOKEN" | tr -d '\r\n')"
+          TOKEN="${TOKEN#Bearer }"
+          TOKEN="${TOKEN#bearer }"
+          if [ -z "$TOKEN" ]; then echo 'Cloudflare token secret is empty'; exit 1; fi
+          echo "Token format check: non-empty; Bearer prefix removed if present; character count $(printf '%s' "$TOKEN" | wc -c | tr -d ' ')"
+          RESPONSE="$(curl -sS https://api.cloudflare.com/client/v4/user/tokens/verify -H "Authorization: Bearer $TOKEN")"
+          echo "$RESPONSE" | jq '{success: .success, errors: .errors, status: .result.status}'
+          echo "$RESPONSE" | jq -e '.success == true' >/dev/null
+          export CLOUDFLARE_API_TOKEN="$TOKEN"
+          npx --yes wrangler@3.90.0 d1 execute purpose-reservations-test-db --remote --file=migrations/0004_email_delivery.sql
