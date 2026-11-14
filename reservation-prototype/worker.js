@@ -58,8 +58,8 @@ function base64Utf8(value){
 async function sendZohoConfirmation(env,reservation){
   if(!env.ZOHO_SMTP_PASSWORD) return {status:"not_configured"};
   const username=env.ZOHO_SMTP_USER||"info@purposepv.com";
-  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(username) ||
-     !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(reservation.email||""))
+  if(!username.includes("@") || !username.split("@")[1]?.includes(".") ||
+     !(reservation.email||"").includes("@") || !(reservation.email||"").split("@")[1]?.includes("."))
     throw new Error("INVALID_EMAIL_ADDRESS");
   const socket=connect({hostname:"smtppro.zoho.com",port:465},{secureTransport:"on"});
   const reader=socket.readable.getReader(),writer=socket.writable.getWriter();
