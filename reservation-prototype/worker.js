@@ -176,6 +176,27 @@ export default {
   if(!env.DB) return json({error:"D1 binding DB is not configured."},503);
   if(url.pathname==="/api/health" && req.method==="GET")
     return json({ok:true,service:"purpose-reservations",mode:"private-prototype"});
+  if(url.pathname==="/api/admin/reservations" && req.method==="GET"){
+    if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
+    const date=url.searchParams.get("date");
+    const from=url.searchParams.get("from")||date;
+    const to=url.searchParams.get("to")||date;
+    if(!validDate(from)||!validDate(to)||from>to)
+      return json({error:"Provide a valid date or date range."},400);
+    const rows=await env.DB.prepare(`
+      SELECT r.id,r.confirmation_code,r.guest_name,r.phone,r.email,r.birthday,
+        r.party_size,r.thali_count,r.reservation_date,r.start_time,r.duration_minutes,
+        r.end_date,r.end_time,r.status,r.source,r.language,r.special_requests,
+        r.internal_notes,r.email_status,r.created_at,
+        GROUP_CONCAT(rt.table_id) AS table_ids
+      FROM reservations r
+      LEFT JOIN reservation_tables rt ON rt.reservation_id=r.id
+      WHERE r.reservation_date BETWEEN ? AND ?
+      GROUP BY r.id
+      ORDER BY r.reservation_date,r.start_time,r.created_at
+    `).bind(from,to).all();
+    return json({reservations:rows.results.map(r=>({...r,table_ids:r.table_ids?r.table_ids.split(",").map(Number):[]}))});
+  }
   if(url.pathname==="/api/tables" && req.method==="GET"){
     if(!isAdmin(req,env)) return json({error:"Unauthorized"},401);
     const r=await env.DB.prepare("SELECT id,capacity,is_active,staff_notes FROM dining_tables ORDER BY id").all();
@@ -296,6 +317,21 @@ export default {
     try{
       if(body.status) await env.DB.prepare("UPDATE reservations SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,id).run();
       if(body.internal_notes!==undefined) await env.DB.prepare("UPDATE reservations SET internal_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(String(body.internal_notes),id).run();
+      if(body.table_ids!==undefined){
+        if(!Array.isArray(body.table_ids)||body.table_ids.length<1||
+          body.table_ids.some(x=>!Number.isInteger(x)||x<1||x>9)||
+          new Set(body.table_ids).size!==body.table_ids.length)
+          return json({error:"table_ids must be a unique list of table numbers 1–9."},400);
+        const current=await env.DB.prepare("SELECT party_size FROM reservations WHERE id=?").bind(id).first();
+        if(!current) return json({error:"Reservation not found."},404);
+        const marks=body.table_ids.map(()=>"?").join(",");
+        const capacity=await env.DB.prepare(`SELECT COALESCE(SUM(capacity),0) AS seats FROM dining_tables WHERE is_active=1 AND id IN (${marks})`).bind(...body.table_ids).first();
+        if(Number(capacity?.seats||0)<Number(current.party_size))
+          return json({error:"The selected tables do not have enough seats."},409);
+        const changes=[env.DB.prepare("DELETE FROM reservation_tables WHERE reservation_id=?").bind(id),
+          ...body.table_ids.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))];
+        await env.DB.batch(changes);
+      }
     }catch(e){if(String(e).includes("TABLE_TIME_CONFLICT"))return json({error:"Status change would cause a table conflict."},409);throw e;}
     const r=await env.DB.prepare("SELECT id,confirmation_code,guest_name,party_size,reservation_date,start_time,duration_minutes,end_date,end_time,status FROM reservations WHERE id=?").bind(id).first();
     return r?json({reservation:r}):json({error:"Reservation not found."},404);
