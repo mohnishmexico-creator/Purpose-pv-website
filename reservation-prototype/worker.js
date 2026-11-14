@@ -71,7 +71,7 @@ async function sendZohoConfirmation(env,reservation){
       if(end>=0){
         const line=buffer.slice(0,end);
         buffer=buffer.slice(end+(buffer.slice(end).startsWith("\r\n")?2:1));
-        const match=line.match(/^(\\d{3})([ -])(.*)$/);
+        const match=line.match(/^(\d{3})([ -])(.*)$/);
         if(match&&match[2]===" ") return Number(match[1]);
         continue;
       }
@@ -119,7 +119,7 @@ async function sendZohoConfirmation(env,reservation){
 }
 
 export default {
- async fetch(req,env){
+ async fetch(req,env,ctx){
   const url=new URL(req.url);
   if(req.method==="OPTIONS") return json({ok:true});
   if(req.method==="GET" && (url.pathname==="/" || url.pathname==="/index.html") && env.ASSETS)
@@ -169,9 +169,9 @@ export default {
   }
   if(url.pathname==="/api/reservations" && req.method==="POST"){
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
-    const {guest_name,phone,email=null,party_size,reservation_date,start_time,language="en",special_requests=null}=body||{};
+    const {guest_name,phone,email,party_size,reservation_date,start_time,language="en",special_requests=null}=body||{};
     const party=Number(party_size),thaliCount=Number(body?.thali_count||0);
-    if(!guest_name?.trim()||!phone?.trim()||!Number.isInteger(party)||party<1||party>8||
+    if(!guest_name?.trim()||!phone?.trim()||!email?.trim()||!/^\S+@\S+\.\S+$/.test(email.trim())||!Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
        !validDate(reservation_date)||!validTime(start_time)||!["en","es"].includes(language))
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
@@ -207,28 +207,26 @@ export default {
       if(String(e).includes("THALI_HOURLY_LIMIT")) return json({error:"Only 12 Thali guests are available in this hour. Please choose another hour or reduce the Thali count."},409);
       return json({error:"Booking could not be saved. Please try again."},500);
     }
-    let emailStatus="not_requested";
-    if(email){
-      await env.DB.prepare("UPDATE reservations SET email_status='pending',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+    const recipient=email.trim();
+    await env.DB.prepare("UPDATE reservations SET email_status='pending',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+    const emailPayload={guest_name:guest_name.trim(),email:recipient,confirmation_code:code,reservation_date,start_time,
+      party_size:party,thali_count:thaliCount,language};
+    const sendAndRecord=async()=>{
       try{
-        const mailResult=await sendZohoConfirmation(env,{
-          guest_name:guest_name.trim(),email,confirmation_code:code,reservation_date,start_time,
-          party_size:party,thali_count:thaliCount,language
-        });
-        emailStatus=mailResult.status;
-        if(emailStatus==="sent"){
-          await env.DB.prepare("UPDATE reservations SET email_status='sent',email_sent_at=CURRENT_TIMESTAMP,email_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
-        }else{
-          await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error='Zoho credentials are not configured',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
-          emailStatus="not_configured";
-        }
+        const mailResult=await sendZohoConfirmation(env,emailPayload);
+        const status=mailResult.status==="sent"?"sent":"failed";
+        const error=status==="sent"?null:"Zoho credentials are not configured";
+        await env.DB.prepare("UPDATE reservations SET email_status=?,email_error=?,email_sent_at=CASE WHEN ?='sent' THEN CURRENT_TIMESTAMP ELSE email_sent_at END,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+          .bind(status,error,status,id).run();
       }catch(e){
-        await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(String(e?.message||"EMAIL_SEND_FAILED").slice(0,120),id).run();
-        emailStatus="failed";
+        await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+          .bind(String(e?.message||"EMAIL_SEND_FAILED").slice(0,120),id).run();
       }
-    }
+    };
+    if(ctx?.waitUntil) ctx.waitUntil(sendAndRecord());
+    else await sendAndRecord();
     return json({ok:true,confirmation_code:code,date:reservation_date,start_time,end_time:end.time,duration_minutes:duration,
-      thali_count:thaliCount,alacarte_count:party-thaliCount,email_status:emailStatus,
+      thali_count:thaliCount,alacarte_count:party-thaliCount,email_status:"queued",
       kitchen_last_order:"21:30",guest_note:language==="es"?"Última orden de cocina a las 9:30 pm.":"Last kitchen order at 9:30 pm."},201);
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
