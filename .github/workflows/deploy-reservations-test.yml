@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: purpose-reservations-test-deploy
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-24.04
