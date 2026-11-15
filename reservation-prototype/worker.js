@@ -245,6 +245,78 @@ export default {
     const r=await env.DB.prepare("SELECT id,capacity,is_active,staff_notes FROM dining_tables ORDER BY id").all();
     return json({tables:r.results});
   }
+  if(url.pathname==="/api/admin/reservations"&&req.method==="POST"){
+    if(!await isAdmin(req,env))return json({error:"Unauthorized"},401);
+    if(!sameOrigin(req))return json({error:"Invalid origin."},403);
+    let body;try{body=await req.json()}catch{return json({error:"Invalid JSON."},400)}
+    const guest_name=String(body.guest_name||"").trim(),phone=String(body.phone||"").trim();
+    const email=String(body.email||"").trim(),party=Number(body.party_size);
+    const thaliCount=Number(body.thali_count||0),date=body.reservation_date,time=body.start_time;
+    const language=body.language==="es"?"es":"en";
+    const special_requests=String(body.special_requests||"").trim()||null;
+    if(!guest_name||guest_name.length>100||phone.length<7||phone.length>40||
+       (email&&(!/^\\S+@\\S+\\.\\S+$/.test(email)||email.length>254))||
+       !Number.isInteger(party)||party<1||party>8||
+       !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
+       !validDate(date)||!validTime(time)||!isArrivalTime(time)||
+       (special_requests&&special_requests.length>1000))
+      return json({error:"Provide valid guest details, date, arrival time and party size (1–8)."},400);
+    const weekday=weekdayForDate(date);
+    if(weekday===1)return json({error:"Purpose is closed on Mondays."},400);
+    if(thaliCount>0&&weekday!==4)return json({error:"Thali reservations are available on Thursdays only."},400);
+    const duration=seatingDuration(party,time),end=addMinutes(date,time,duration);
+    if(end.date!==date||(time!=="21:00"&&end.time>"22:00"))
+      return json({error:"Choose an available arrival time."},400);
+    const all=await assignedBookings(env.DB,date,end.date);
+    const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
+    const tableIds=chooseTables(tables.results,all,date,time,end.date,end.time,party);
+    if(!tableIds)return json({error:"No single table is available for that party size and time."},409);
+    if(weekday===4&&thaliCount>0){
+      const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(date,time.slice(0,2)).first();
+      if(exceedsThaliLimit(used?.used||0,thaliCount))
+        return json({error:"Only 12 Thali guests are available in this hour. Please reduce the Thali count or choose another hour."},409);
+    }
+    const id=crypto.randomUUID(),code=crypto.randomUUID().slice(0,8).toUpperCase();
+    try{
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO reservations
+          (id,confirmation_code,guest_name,phone,email,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language,special_requests)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'confirmed','phone',?,?)`)
+          .bind(id,code,guest_name,phone,email||null,party,thaliCount,date,time,duration,end.date,end.time,language,special_requests),
+        ...tableIds.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))
+      ]);
+    }catch(e){
+      const detail=String(e?.message||e||"");
+      if(detail.includes("TABLE_TIME_CONFLICT"))return json({error:"That table was just booked. Please choose another time."},409);
+      if(detail.includes("THALI_HOURLY_LIMIT"))return json({error:"Only 12 Thali guests are available in this hour."},409);
+      console.error("Phone reservation save failed:",e);
+      return json({error:"Phone reservation could not be saved."},500);
+    }
+    if(email)await env.DB.prepare("UPDATE reservations SET email_status='pending',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+    const emailPayload={guest_name,email,confirmation_code:code,reservation_date:date,start_time,party_size:party,thali_count:thaliCount,language};
+    const ownerPayload={guest_name,guest_email:email,phone,confirmation_code:code,reservation_date:date,start_time,
+      party_size:party,thali_count:thaliCount,special_requests,language};
+    const notify=async()=>{
+      if(email){
+        try{
+          const mailResult=await sendZohoConfirmation(env,emailPayload);
+          const status=mailResult.status==="sent"?"sent":mailResult.status==="suppressed"?"not_requested":"failed";
+          const error=status==="sent"?null:status==="not_requested"?"Email delivery disabled in isolated test environment":"Zoho credentials are not configured";
+          await env.DB.prepare("UPDATE reservations SET email_status=?,email_error=?,email_sent_at=CASE WHEN ?='sent' THEN CURRENT_TIMESTAMP ELSE email_sent_at END,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            .bind(status,error,status,id).run();
+        }catch(e){
+          await env.DB.prepare("UPDATE reservations SET email_status='failed',email_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            .bind(String(e?.message||"EMAIL_SEND_FAILED").slice(0,120),id).run();
+        }
+      }
+      try{await sendZohoMail(env,"info@purposepv.com",ownerNotificationEmail(ownerPayload));}
+      catch(e){console.error("OWNER_NOTIFICATION_FAILED",String(e?.message||e));}
+    };
+    if(ctx?.waitUntil)ctx.waitUntil(notify());else await notify();
+    return json({ok:true,confirmation_code:code,date,start_time,end_time:end.time,duration_minutes:duration,
+      table_ids:tableIds,thali_count:thaliCount,alacarte_count:party-thaliCount,
+      email_status:email?(env.SUPPRESS_EMAILS==="true"?"not_requested":"queued"):"not_requested",source:"phone"},201);
+  }
   if(url.pathname==="/api/admin/walkins"&&req.method==="POST"){
     if(!await isAdmin(req,env))return json({error:"Unauthorized"},401);
     if(!sameOrigin(req))return json({error:"Invalid origin."},403);
