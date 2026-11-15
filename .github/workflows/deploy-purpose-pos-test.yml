@@ -1,0 +1,39 @@
+name: Deploy Purpose POS test Worker
+
+on:
+  push:
+    branches:
+      - purpose-pos-prototype
+    paths:
+      - "pos-prototype/**"
+      - ".github/workflows/deploy-purpose-pos-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: purpose-pos-test
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out POS prototype
+        uses: actions/checkout@v4
+        with:
+          ref: purpose-pos-prototype
+      - name: Validate prototype files
+        run: |
+          test -f pos-prototype/wrangler.toml
+          test -f pos-prototype/src/index.js
+          test -f pos-prototype/public/index.html
+          echo "PASS POS prototype files present"
+      - name: Deploy isolated test Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "pos-prototype"
+          command: deploy
