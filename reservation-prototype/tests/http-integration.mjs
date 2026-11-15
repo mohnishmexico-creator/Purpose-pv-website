@@ -78,6 +78,12 @@ const patchData=await patchResponse.json();
 assert(patchResponse.ok&&patchData.reservation,"staff can edit notes and reassign the phone booking");
 console.log("PASS staff reservation editing and table reassignment");
 
+const smtpResponse=await staffPost("/api/test/smtp",{});
+const smtpText=await smtpResponse.text();let smtpData;try{smtpData=JSON.parse(smtpText)}catch{throw new Error("SMTP verification returned non-JSON (HTTP "+smtpResponse.status+"): "+smtpText.slice(0,300))}
+assert(smtpResponse.status===200&&smtpData.status==="authenticated","Zoho SMTP credentials must authenticate without sending an email: "+JSON.stringify(smtpData));
+console.log("PASS Zoho SMTP authentication (no email sent)");
+
+
 let c = await postBooking("C2", {time:"19:00",party:2,thali:0});
 assert(c.response.status===201 && c.data.duration_minutes===90, "standard 1–3 guest booking should be 90 minutes");
 console.log("PASS 1–3 guest standard seating: 90 minutes");
