@@ -29,7 +29,11 @@ function isPastArrival(date,time){
   const now=pvDateTime();
   return date<now.date||(date===now.date&&time<=now.time);
 }
-function validTime(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||"");}
+function validTime(s){return /^([01]\\d|2[0-3]):[0-5]\\d$/.test(s||"");}
+function isPrivateEventBlocked(date,startTime,endDate,endTime){
+  if(date!=="2026-11-15" || endDate!=="2026-11-15") return false;
+  return startTime < "18:30" && endTime > "17:00";
+}
 function validBirthday(s){ if(s==null||s==="") return true; if(!/^\d{2}-\d{2}$/.test(s)) return false; const [m,d]=s.split("-").map(Number); const dt=new Date(Date.UTC(2000,m-1,d)); return dt.getUTCMonth()===m-1 && dt.getUTCDate()===d; }
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{
   "content-type":"application/json; charset=utf-8","cache-control":"no-store",
@@ -338,6 +342,7 @@ export default {
     const all=await assignedBookings(env.DB,date,end.date);
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
     const tableIds=chooseTables(tables.results,all,date,time,end.date,end.time,party);
+    if(isPrivateEventBlocked(date,time,end.date,end.time))return json({error:"The restaurant is reserved for a private event until 6:30 pm. Please choose 6:30 pm or later."},409);
     if(!tableIds)return json({error:"No single table is available for that party size and time."},409);
     if(weekday===4&&thaliCount>0){
       const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(date,time.slice(0,2)).first();
@@ -401,6 +406,7 @@ export default {
     const all=await assignedBookings(env.DB,date,end.date);
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
     const tableIds=chooseTables(tables.results,all,date,time,end.date,end.time,party);
+    if(isPrivateEventBlocked(date,time,end.date,end.time))return json({error:"The restaurant is reserved for a private event until 6:30 pm. Please choose 6:30 pm or later."},409);
     if(!tableIds)return json({error:"No table combination is available for that time."},409);
     const id=crypto.randomUUID(),code=crypto.randomUUID().slice(0,8).toUpperCase();
     try{
@@ -457,6 +463,7 @@ export default {
       if(date===now.date&&t<=now.time) continue;
       const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
       if(end.date!==date || end.time>"22:00") continue;
+      if(isPrivateEventBlocked(date,t,end.date,end.time)) continue;
       if(!chooseTables(tables.results,all,date,t,end.date,end.time,party)) continue;
       if(isThursday&&thaliCount>0){
         const hour=t.slice(0,2);
@@ -485,6 +492,7 @@ export default {
     if(!isArrivalTime(start_time))
       return json({error:"Choose an arrival time between 5:00 pm and 8:00 pm."},400);
     const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
+    if(isPrivateEventBlocked(reservation_date,start_time,end.date,end.time)) return json({error:"The restaurant is reserved for a private event until 6:30 pm. Please choose 6:30 pm or later."},409);
     if(end.date!==reservation_date||end.time>"22:00")
       return json({error:"Choose an available arrival time."},400);
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
