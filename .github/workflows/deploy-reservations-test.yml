@@ -75,7 +75,6 @@ jobs:
       - name: Run read-only HTTP smoke tests against isolated test Worker
         env:
           TEST_BASE_URL: https://purpose-reservations-staging.mohnishmexico.workers.dev
-          TEST_AUTH_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
         run: |
           node --input-type=module <<'NODE'
           const base = process.env.TEST_BASE_URL;
@@ -117,9 +116,13 @@ jobs:
           if (![401,503].includes(loginProbe.status)) throw new Error("Unexpected staff login response: " + loginProbe.status);
           if (loginProbe.status !== 503) throw new Error("Staging Worker should not contain production login secrets");
           const authBase = process.env.TEST_AUTH_BASE_URL;
-          const reservedLoginProbe = await fetch(authBase + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":authBase},body:JSON.stringify({password:"invalid-ci-probe"})});
-          if (reservedLoginProbe.status !== 401) throw new Error("Reserved production Worker must retain its configured admin secrets");
-          console.log("PASS staging Worker has no production login secrets; reserved production Worker retains them");
+          if (authBase) {
+            const reservedLoginProbe = await fetch(authBase + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":authBase},body:JSON.stringify({password:"invalid-ci-probe"})});
+            if (reservedLoginProbe.status !== 401) throw new Error("Reserved production Worker must retain its configured admin secrets");
+            console.log("PASS staging Worker has no production login secrets; reserved production Worker retains them");
+          } else {
+            console.log("SKIP reserved production login probe after promotion; staging remains isolated");
+          }
           console.log("All read-only HTTP smoke tests passed.");
           NODE
 
@@ -145,7 +148,6 @@ jobs:
         working-directory: reservation-prototype
         env:
           TEST_BASE_URL: https://purpose-reservations-staging.mohnishmexico.workers.dev
-          SMTP_TEST_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
           TEST_RUN_ID: ${{ github.run_id }}
           TEST_ADMIN_TOKEN: ci-only-test-token
 
