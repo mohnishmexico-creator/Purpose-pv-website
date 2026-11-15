@@ -328,7 +328,7 @@ export default {
     if(weekday===1)return json({error:"Purpose is closed on Mondays."},400);
     if(thaliCount>0&&weekday!==4)return json({error:"Thali reservations are available on Thursdays only."},400);
     const duration=seatingDuration(party,time),end=addMinutes(date,time,duration);
-    if(end.date!==date||(time!=="21:00"&&end.time>"22:00"))
+    if(end.date!==date||end.time>"22:00")
       return json({error:"Choose an available arrival time."},400);
     const all=await assignedBookings(env.DB,date,end.date);
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
@@ -444,12 +444,12 @@ export default {
     if(thaliCount>0&&!isThursday) return json({error:"Thali reservations are available on Thursdays only."},400);
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
     const all=await assignedBookings(env.DB,date,date);
-    const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00","20:30","21:00"];
+    const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00"];
     const available_times=[];
     const thali_remaining={};
     for(const t of times){
       const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
-      if(end.date!==date || (t!=="21:00" && end.time>"22:00")) continue;
+      if(end.date!==date || end.time>"22:00") continue;
       if(!chooseTables(tables.results,all,date,t,end.date,end.time,party)) continue;
       if(isThursday&&thaliCount>0){
         const hour=t.slice(0,2);
@@ -462,7 +462,7 @@ export default {
     }
     return json({date,party_size:party,thali_count:thaliCount,available_times,
       thali_hourly_limit:isThursday?12:null,thali_remaining,kitchen_last_order:"21:30",
-      note:"Last kitchen order at 9:30 pm. 9:00 pm arrival: 60-minute seating for 1–3 guests; 90 minutes for 4–8 guests."});
+      note:"All reservations have 120-minute seating. Last available arrival is 8:00 pm; last kitchen order is at 9:30 pm."});
   }
   if(url.pathname==="/api/reservations" && req.method==="POST"){
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
@@ -478,7 +478,7 @@ export default {
     if(!isArrivalTime(start_time))
       return json({error:"Choose an arrival time between 5:00 pm and 9:00 pm."},400);
     const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
-    if(end.date!==reservation_date||(start_time!=="21:00"&&end.time>"22:00"))
+    if(end.date!==reservation_date||end.time>"22:00")
       return json({error:"Choose an available arrival time."},400);
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
     const all=await assignedBookings(env.DB,reservation_date,end.date);
