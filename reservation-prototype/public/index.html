@@ -109,6 +109,6 @@ document.getElementById('bookingForm').addEventListener('submit',async e=>{
  }catch(err){result.textContent=err.message||'Could not complete reservation.'}
  finally{btn.disabled=false;btn.textContent=t('submit')}
 });
-function pvToday(){return pvClock().date}document.getElementById('date').min=pvToday();setLang('en');updateThaliField();updatePastSlots();
+function pvToday(){return pvClock().date}function pvBookingMax(){const [y,m,d]=pvToday().split('-').map(Number),dt=new Date(Date.UTC(y,m-1,d+28));return dt.toISOString().slice(0,10)}document.getElementById('date').min=pvToday();document.getElementById('date').max=pvBookingMax();setLang('en');updateThaliField();updatePastSlots();
 </script>
 </body></html>
