@@ -94,6 +94,16 @@ let wrongDay = await postBooking("NONTHALI", {date:saturday,time:"17:00",party:2
 assert(wrongDay.response.status===400, "Thali on a non-Thursday must be rejected");
 console.log("PASS Monday closure and Thursday-only Thali rules");
 
+const pastDateObject=new Date();pastDateObject.setUTCDate(pastDateObject.getUTCDate()-2);
+const pastDate=pastDateObject.toISOString().slice(0,10);
+const pastBooking=await postBooking("PAST",{date:pastDate,time:"17:00",party:2,thali:0});
+assert(pastBooking.response.status===400,"past reservations must be rejected");
+const invalidCalendarDate=await postBooking("BADDATE",{date:"2026-02-31",time:"17:00",party:2,thali:0});
+assert(invalidCalendarDate.response.status===400,"impossible calendar dates must be rejected");
+const pastAvailability=await fetch(base+`/api/availability?date=${pastDate}&party_size=2`);
+assert(pastAvailability.status===400,"past availability dates must be rejected");
+console.log("PASS server-side date validation rejects past and impossible dates");
+
 const availability = await fetch(base+`/api/availability?date=${thursday}&party_size=1&thali_count=1`);
 const av = await availability.json();
 assert(availability.ok && !av.available_times.includes("17:00"), "availability must hide a fully allocated Thali hour");
