@@ -18,12 +18,17 @@ function validDate(s){
   const d=new Date(s+"T12:00:00Z");
   return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===s;
 }
-function pvToday(){
-  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+function pvDateTime(){
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());
   const values=Object.fromEntries(parts.map(p=>[p.type,p.value]));
-  return values.year+"-"+values.month+"-"+values.day;
+  return {date:values.year+"-"+values.month+"-"+values.day,time:values.hour+":"+values.minute};
 }
+function pvToday(){return pvDateTime().date;}
 function isPastDate(s){return s<pvToday();}
+function isPastArrival(date,time){
+  const now=pvDateTime();
+  return date<now.date||(date===now.date&&time<=now.time);
+}
 function validTime(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||"");}
 function validBirthday(s){ if(s==null||s==="") return true; if(!/^\d{2}-\d{2}$/.test(s)) return false; const [m,d]=s.split("-").map(Number); const dt=new Date(Date.UTC(2000,m-1,d)); return dt.getUTCMonth()===m-1 && dt.getUTCDate()===d; }
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{
@@ -321,7 +326,7 @@ export default {
        (email&&(!/^\S+@\S+\.\S+$/.test(email)||email.length>254))||
        !Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
-       !validDate(date)||!validTime(time)||!isArrivalTime(time)||
+       !validDate(date)||!validTime(time)||isPastArrival(date,time)||!isArrivalTime(time)||
        (special_requests&&special_requests.length>1000))
       return json({error:"Provide valid guest details, date, arrival time and party size (1–8)."},400);
     const weekday=weekdayForDate(date);
@@ -386,7 +391,7 @@ export default {
     let body;try{body=await req.json()}catch{return json({error:"Invalid JSON."},400)}
     const party=Number(body.party_size),thali=Number(body.thali_count||0),date=body.reservation_date,time=body.start_time;
     const name=String(body.guest_name||"Walk-in").trim(),phone=String(body.phone||"").trim();
-    if(!validDate(date)||isPastDate(date)||!validTime(time)||!Number.isInteger(party)||party<1||party>8||
+    if(!validDate(date)||!validTime(time)||isPastArrival(date,time)||!Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thali)||thali<0||thali>party||!isArrivalTime(time)||name.length>100||phone.length>40)
       return json({error:"Provide a valid date, arrival time, party size (1–8) and Thali count."},400);
     const weekday=weekdayForDate(date);
@@ -445,9 +450,11 @@ export default {
     const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
     const all=await assignedBookings(env.DB,date,date);
     const times=["17:00","17:30","18:00","18:30","19:00","19:30","20:00"];
+    const now=pvDateTime();
     const available_times=[];
     const thali_remaining={};
     for(const t of times){
+      if(date===now.date&&t<=now.time) continue;
       const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
       if(end.date!==date || end.time>"22:00") continue;
       if(!chooseTables(tables.results,all,date,t,end.date,end.time,party)) continue;
@@ -470,7 +477,7 @@ export default {
     const party=Number(party_size),thaliCount=Number(body?.thali_count||0);
     if(!guest_name?.trim()||guest_name.trim().length>100||!phone?.trim()||phone.trim().length>40||!email?.trim()||email.trim().length>254||!/^\S+@\S+\.\S+$/.test(email.trim())||!Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
-       !validDate(reservation_date)||isPastDate(reservation_date)||!validTime(start_time)||!validBirthday(birthday)||!["en","es"].includes(language)||String(special_requests||"").length>1000)
+       !validDate(reservation_date)||!validTime(start_time)||isPastArrival(reservation_date,start_time)||!validBirthday(birthday)||!["en","es"].includes(language)||String(special_requests||"").length>1000)
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
     const weekday=weekdayForDate(reservation_date);
     if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
