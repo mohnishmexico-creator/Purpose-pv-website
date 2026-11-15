@@ -1,1 +1,1 @@
-Approved production Worker promotion after owner confirmed the nine-table, 36-seat configuration.
+Approved production promotion with the Nov 15 private-event block, after passing staging unit, browser, booking, lifecycle and event-availability tests.
