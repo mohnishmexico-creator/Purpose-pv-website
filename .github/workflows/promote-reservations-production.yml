@@ -59,6 +59,15 @@ jobs:
           const availability = await availabilityResponse.json();
           assert(availabilityResponse.ok && availability.thali_hourly_limit === 12 && Array.isArray(availability.available_times), "Production availability API failed");
           assert(availability.available_times.at(-1) === "20:00" && availability.available_times.every(t => t <= "20:00"), "Production availability must stop at the 8 pm final arrival");
+          const eventAvailabilityResponse = await fetch(base + "/api/availability?date=2026-11-15&party_size=2");
+          const eventAvailability = await eventAvailabilityResponse.json();
+          assert(eventAvailabilityResponse.ok && !eventAvailability.available_times.includes("17:00") && !eventAvailability.available_times.includes("17:30") && !eventAvailability.available_times.includes("18:00") && eventAvailability.available_times.includes("18:30"), "Nov 15 private event block must hide arrivals before 6:30 pm and reopen at 6:30 pm: " + JSON.stringify(eventAvailability));
+          const blockedBookingResponse = await fetch(base + "/api/reservations", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({guest_name:"Private Event Block Verification",phone:"+523221090525",email:"info@purposepv.com",party_size:2,reservation_date:"2026-11-15",start_time:"18:00",language:"en"})});
+          assert(blockedBookingResponse.status === 409, "Nov 15 6:00 pm booking must be rejected during the private event");
+          const reopenBookingResponse = await fetch(base + "/api/reservations", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({guest_name:"Private Event Reopen Verification",phone:"+523221090525",email:"info@purposepv.com",party_size:2,reservation_date:"2026-11-15",start_time:"18:30",language:"en"})});
+          assert(reopenBookingResponse.status === 201, "Nov 15 6:30 pm must accept a reservation after the private event");
+          const reopenBooking = await reopenBookingResponse.json();
+          console.log("PASS Nov 15 private event block and 6:30 pm reopening, test confirmation " + reopenBooking.confirmation_code);
           assert(guestHtml.includes("Standard seating: 120 minutes for all parties") && !guestHtml.includes("90 minutes"), "Production guest page must show 120-minute seating for all parties");
           const staffResponse = await fetch(base + "/staff");
           const staffHtml = await staffResponse.text();
