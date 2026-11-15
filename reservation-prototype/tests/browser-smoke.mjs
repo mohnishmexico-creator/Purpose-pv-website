@@ -15,6 +15,10 @@ try{
  const page=await browser.newPage({viewport:{width:390,height:844}});
  await page.goto(base,{waitUntil:"networkidle"});
  if(!(await page.title()).includes("Purpose PV")) throw new Error("Guest page title missing");
+ const pvNow=await page.evaluate(()=>{const p=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date());const v=Object.fromEntries(p.map(x=>[x.type,x.value]));return {date:v.year+"-"+v.month+"-"+v.day,time:v.hour+":"+v.minute}});
+ const passedSlot=["17:00","17:30","18:00","18:30","19:00","19:30","20:00"].filter(t=>t<=pvNow.time).at(-1);
+ await page.locator("#date").fill(pvNow.date);
+ if(passedSlot&&!await page.locator(`#time option[value="${passedSlot}"]`).isDisabled()) throw new Error("Guest form must disable past same-day arrival slots");
  const arrivals=await page.locator("#time option").evaluateAll(nodes=>nodes.map(n=>n.value));
  if(arrivals.at(-1)!=="20:00"||arrivals.includes("20:30")||arrivals.includes("21:00")) throw new Error("Guest arrival options must end at 8 pm");
  const duration=await page.locator("#duration").innerText();
@@ -33,6 +37,9 @@ try{
  if(await page.locator("#login").isHidden()) throw new Error("Staff login screen should be visible");
  if(await page.locator("#dashboard").isVisible()) throw new Error("Staff dashboard must stay hidden before login");
  if(await page.locator("#phoneForm").count()!==1||await page.locator("#walkinForm").count()!==1) throw new Error("Staff phone booking and walk-in forms are missing");
+ if(passedSlot){
+  for(const selector of ["#phTime","#wiTime"]) if(!await page.locator(`${selector} option[value="${passedSlot}"]`).isDisabled()) throw new Error("Staff forms must disable past same-day arrival slots");
+ }
  for(const selector of ["#phTime","#wiTime"]){
   const options=await page.locator(selector+" option").evaluateAll(nodes=>nodes.map(n=>n.value));
   if(options.at(-1)!=="20:00"||options.includes("20:30")||options.includes("21:00")) throw new Error("Staff booking times must end at 8 pm");
