@@ -1,0 +1,76 @@
+name: Deploy Purpose PV website
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-purpose-website.yml"
+      - "*.html"
+      - "es/**"
+      - "menu/**"
+      - "*.pdf"
+      - "robots.txt"
+      - "sitemap.xml"
+      - "wrangler.toml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: purpose-pv-website-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out production website
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate static website assets
+        run: |
+          test -f index.html
+          test -f es/index.html
+          test -f reservations.html
+          test -f menu/index.html
+          test -f es/menu/index.html
+          ! grep -R "purpose-reservations-staging" index.html es/index.html reservations.html menu/index.html es/menu/index.html
+          grep -q "purpose-reservations-test.mohnishmexico.workers.dev" reservations.html
+          ! grep -R "tableagent.com" reservations.html
+          echo "PASS production website files and reservation Worker target"
+
+      - name: Dry-run production website deployment
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          command: deploy --dry-run
+
+      - name: Deploy production website
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          command: deploy
+
+      - name: Verify production reservation page and static site
+        run: |
+          node --input-type=module <<'NODE'
+          const base = "https://purposepv.com";
+          const reservation = await fetch(base + "/reservations.html?deploy-check=" + Date.now());
+          const html = await reservation.text();
+          if (!reservation.ok || !html.includes("purpose-reservations-test.mohnishmexico.workers.dev") || html.includes("tableagent.com") || html.includes("purpose-reservations-staging")) {
+            throw new Error("Live reservations page did not switch to the production booking Worker");
+          }
+          const home = await fetch(base + "/");
+          const homeHtml = await home.text();
+          if (!home.ok || !homeHtml.includes("/reservations.html")) throw new Error("Live homepage reservation links are not available");
+          const spanish = await fetch(base + "/es/");
+          const esHtml = await spanish.text();
+          if (!spanish.ok || !esHtml.includes("/reservations.html")) throw new Error("Live Spanish homepage reservation links are not available");
+          console.log("PASS live English and Spanish website pages point to the production reservation system");
+          NODE
