@@ -5,8 +5,11 @@ const base=process.env.TEST_BASE_URL;
 if(!base) throw new Error("TEST_BASE_URL is required");
 const d=new Date();const delta=((4-d.getUTCDay()+7)%7)||7;d.setUTCDate(d.getUTCDate()+delta);
 const thursday=d.toISOString().slice(0,10);
+for(const file of ["../index.html","../es/index.html","../reservations.html","../menu/index.html","../es/menu/index.html"]){
+ const html=readFileSync(file,"utf8");
+ if(html.toLowerCase().includes("tableagent.com")) throw new Error("Prepared website page still contains TableAgent references: "+file);
+}
 const wrapperHtml=readFileSync("../reservations.html","utf8");
-if(wrapperHtml.includes("tableagent.com")) throw new Error("Prepared reservation page still contains TableAgent links");
 const server=createServer((req,res)=>{res.writeHead(200,{"content-type":"text/html; charset=utf-8"});res.end(wrapperHtml)});
 await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
 const wrapperUrl=`http://127.0.0.1:${server.address().port}/`;
