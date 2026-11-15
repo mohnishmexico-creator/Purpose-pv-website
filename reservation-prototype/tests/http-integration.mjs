@@ -50,7 +50,7 @@ const phoneResponse=await staffPost("/api/admin/reservations",{
   party_size:2,thali_count:0,reservation_date:thursday,start_time:"17:00",
   language:"en",special_requests:"Automated phone booking test"
 });
-const phoneData=await phoneResponse.json();
+const phoneText=await phoneResponse.text();let phoneData;try{phoneData=JSON.parse(phoneText)}catch{throw new Error("Phone reservation API returned non-JSON (HTTP "+phoneResponse.status+"): "+phoneText.slice(0,300))}
 assert(phoneResponse.status===201&&phoneData.ok&&phoneData.source==="phone","staff phone reservation should be created: "+JSON.stringify(phoneData));
 assert(Array.isArray(phoneData.table_ids)&&phoneData.table_ids.length===1,"phone reservation must receive one suitable table");
 console.log("PASS staff phone reservation creation and automatic single-table assignment");
@@ -59,7 +59,7 @@ const walkinResponse=await staffPost("/api/admin/walkins",{
   guest_name:prefix+" WALKIN",phone:"+52 000 000 0002",party_size:2,thali_count:0,
   reservation_date:thursday,start_time:"18:00"
 });
-const walkinData=await walkinResponse.json();
+const walkinText=await walkinResponse.text();let walkinData;try{walkinData=JSON.parse(walkinText)}catch{throw new Error("Walk-in API returned non-JSON (HTTP "+walkinResponse.status+"): "+walkinText.slice(0,300))}
 assert(walkinResponse.status===201&&walkinData.ok,"staff walk-in should be created: "+JSON.stringify(walkinData));
 console.log("PASS staff walk-in creation");
 
