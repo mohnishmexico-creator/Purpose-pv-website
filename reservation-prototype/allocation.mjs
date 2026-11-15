@@ -7,15 +7,8 @@ export function overlaps(aDate,aStart,aEndDate,aEnd,bDate,bStart,bEndDate,bEnd){
 export function chooseTables(tables,bookings,date,start,endDate,endTime,party){
   const free=tables.filter(t=>!bookings.some(b=>Number(b.table_id)===Number(t.id)&&
     overlaps(date,start,endDate,endTime,b.reservation_date,b.start_time,b.end_date,b.end_time)));
-  let best=null;
-  for(let mask=1;mask<(1<<free.length);mask++){
-    let seats=0,ids=[];
-    for(let i=0;i<free.length;i++) if(mask&(1<<i)){seats+=Number(free[i].capacity);ids.push(Number(free[i].id));}
-    if(seats<party) continue;
-    ids.sort((a,b)=>a-b);
-    if(!best||seats<best.seats||(seats===best.seats&&ids.length<best.ids.length)||
-      (seats===best.seats&&ids.length===best.ids.length&&ids.join(",")<best.ids.join(",")))
-      best={seats,ids};
-  }
-  return best?.ids||null;
+  const suitable=free
+    .filter(t=>Number(t.capacity)>=Number(party))
+    .sort((a,b)=>Number(a.capacity)-Number(b.capacity)||Number(a.id)-Number(b.id));
+  return suitable.length?[Number(suitable[0].id)]:null;
 }
