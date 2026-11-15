@@ -256,7 +256,7 @@ export default {
     const language=body.language==="es"?"es":"en";
     const special_requests=String(body.special_requests||"").trim()||null;
     if(!guest_name||guest_name.length>100||phone.length<7||phone.length>40||
-       (email&&(!/^\\S+@\\S+\\.\\S+$/.test(email)||email.length>254))||
+       (email&&(!/^\S+@\S+\.\S+$/.test(email)||email.length>254))||
        !Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
        !validDate(date)||!validTime(time)||!isArrivalTime(time)||
