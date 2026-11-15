@@ -3,6 +3,11 @@ main = "src/index.js"
 compatibility_date = "2026-11-15"
 workers_dev = true
 
+[[d1_databases]]
+binding = "DB"
+database_name = "purpose-pos-test-db"
+database_id = "SET_BY_DEPLOY_WORKFLOW"
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
