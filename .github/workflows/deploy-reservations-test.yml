@@ -150,6 +150,8 @@ jobs:
           TEST_BASE_URL: https://purpose-reservations-staging.mohnishmexico.workers.dev
           TEST_RUN_ID: ${{ github.run_id }}
           TEST_ADMIN_TOKEN: ci-only-test-token
+          TEST_AUTH_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
+          SMTP_TEST_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
 
       - name: Apply cancellation, no-show and completion lifecycle transitions
         uses: cloudflare/wrangler-action@v3
