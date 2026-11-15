@@ -476,7 +476,7 @@ export default {
     if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
     if(thaliCount>0&&weekday!==4) return json({error:"Thali reservations are available on Thursdays only."},400);
     if(!isArrivalTime(start_time))
-      return json({error:"Choose an arrival time between 5:00 pm and 9:00 pm."},400);
+      return json({error:"Choose an arrival time between 5:00 pm and 8:00 pm."},400);
     const duration=seatingDuration(party,start_time),end=addMinutes(reservation_date,start_time,duration);
     if(end.date!==reservation_date||end.time>"22:00")
       return json({error:"Choose an available arrival time."},400);
