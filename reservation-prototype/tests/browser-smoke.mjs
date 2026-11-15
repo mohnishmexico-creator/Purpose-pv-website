@@ -50,6 +50,8 @@ try{
  const frameSrc=await wrapperPage.locator("#reservationFrame").getAttribute("src");
  if(!frameSrc||!frameSrc.includes("purpose-reservations-staging")) throw new Error("Prepared reservation page must embed the isolated staging Worker");
  if((await wrapperPage.locator("body").innerText()).includes("TableAgent")) throw new Error("Prepared reservation page must not display TableAgent");
+ await wrapperPage.getByRole("button",{name:"ES"}).click();
+ if(!(await wrapperPage.locator("h1").innerText()).includes("Reserva")) throw new Error("Reservation wrapper must switch to Spanish");
  const embedded=wrapperPage.frameLocator("#reservationFrame");
  await embedded.locator("#guestTitle").waitFor();
  const embeddedDuration=await embedded.locator("#duration").innerText();
