@@ -357,7 +357,7 @@ export default {
     }
     if(email)await env.DB.prepare("UPDATE reservations SET email_status='pending',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
     const emailPayload={guest_name,email,confirmation_code:code,reservation_date:date,start_time:time,party_size:party,thali_count:thaliCount,language};
-    const ownerPayload={guest_name,guest_email:email,phone,confirmation_code:code,reservation_date:date,start_time,
+    const ownerPayload={guest_name,guest_email:email,phone,confirmation_code:code,reservation_date:date,start_time:time,
       party_size:party,thali_count:thaliCount,special_requests,language};
     const notify=async()=>{
       if(email){
@@ -376,7 +376,7 @@ export default {
       catch(e){console.error("OWNER_NOTIFICATION_FAILED",String(e?.message||e));}
     };
     if(ctx?.waitUntil)ctx.waitUntil(notify());else await notify();
-    return json({ok:true,confirmation_code:code,date,start_time,end_time:end.time,duration_minutes:duration,
+    return json({ok:true,confirmation_code:code,date,start_time:time,end_time:end.time,duration_minutes:duration,
       table_ids:tableIds,thali_count:thaliCount,alacarte_count:party-thaliCount,
       email_status:email?(env.SUPPRESS_EMAILS==="true"?"not_requested":"queued"):"not_requested",source:"phone"},201);
   }
