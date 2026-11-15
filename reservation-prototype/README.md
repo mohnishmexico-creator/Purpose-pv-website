@@ -35,17 +35,20 @@ Automatic assignment always chooses the smallest suitable single table; it never
 ## Planned architecture
 - Existing Cloudflare Pages site for front end, only after approval.
 - Cloudflare Worker for the reservation API.
-- Separate Cloudflare D1 test database for records and table assignments.
+- Isolated staging Worker `purpose-reservations-staging` bound to the test D1 database.
+- Separate, migrated production D1 database `purpose-reservations-production-db` (empty, nine tables / 36 seats).
+- Reserved production Worker script `purpose-reservations-test` retains the configured staff and Zoho SMTP secrets; `wrangler.production.toml` promotes it to the production D1 and clean production assets. Do not deploy it until the owner says to switch.
 - Puerto Vallarta local date/time handling.
 - No real customer data or live bookings in this prototype.
 
 ## Test setup and automated checks
 1. Create a dedicated D1 test database.
 2. Apply migrations in order: `0001_initial.sql`, `0002_conflict_guards.sql`, `0003_guest_birthday.sql`, `0003_thursday_thali_limit.sql`, `0004_email_delivery.sql`, `0005_staff_login_throttle.sql`, and `0006_rebuild_conflict_guards.sql`.
-3. Bind D1 to a dedicated preview Worker, not the live site.
-4. Configure `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` as Worker secrets; never commit them. The isolated test Worker also has a public CI-only staff token, which must never be copied into production.
-5. CI verifies single-table allocation, standard and 9:00 pm durations, Thali limits, booking conflicts, cancellation/no-show/completion, phone bookings, walk-ins, and staff table reassignment using fictional records.
-6. Complete security and concurrency review before production.
+3. Bind test D1 to the staging Worker; CI deploys only to staging.
+4. Production D1 and production assets are prepared separately. Production Worker promotion is guarded by a dedicated workflow and rollback config; it is not triggered until `production-deploy.trigger` is intentionally added.
+5. The staging Worker uses a public CI-only staff token and suppressed email. The reserved production Worker has `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, and `ZOHO_SMTP_PASSWORD` secret bindings; SMTP authentication was verified without sending an email. Never commit secret values.
+6. CI verifies single-table allocation, standard and 9:00 pm durations, Thali limits, booking conflicts, cancellation/no-show/completion, phone bookings, walk-ins, and staff table reassignment using fictional records.
+7. Complete final owner approval and live email-delivery check before switching the website.
 
 ## Safety requirements
 - Staff endpoints require authentication.
