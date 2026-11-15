@@ -304,7 +304,7 @@ export default {
       return json({error:"Phone reservation could not be saved."},500);
     }
     if(email)await env.DB.prepare("UPDATE reservations SET email_status='pending',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
-    const emailPayload={guest_name,email,confirmation_code:code,reservation_date:date,start_time,party_size:party,thali_count:thaliCount,language};
+    const emailPayload={guest_name,email,confirmation_code:code,reservation_date:date,start_time:time,party_size:party,thali_count:thaliCount,language};
     const ownerPayload={guest_name,guest_email:email,phone,confirmation_code:code,reservation_date:date,start_time,
       party_size:party,thali_count:thaliCount,special_requests,language};
     const notify=async()=>{
