@@ -71,3 +71,86 @@ jobs:
           await check("/api/admin/reservations?date=2026-11-19", 401, "staff API rejects unauthenticated access");
           console.log("All read-only HTTP smoke tests passed.");
           NODE
+
+      - name: Run browser checks with Playwright
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install chromium
+          node tests/browser-smoke.mjs
+        working-directory: reservation-prototype
+        env:
+          TEST_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
+
+      - name: Clear prior CI fixtures from isolated D1
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "DELETE FROM reservation_tables WHERE reservation_id IN (SELECT id FROM reservations WHERE guest_name LIKE 'CI TEST %'); DELETE FROM reservations WHERE guest_name LIKE 'CI TEST %'; DELETE FROM reservation_tables WHERE reservation_id LIKE 'ci-%'; DELETE FROM reservations WHERE id LIKE 'ci-%'; DELETE FROM staff_login_attempts;"
+
+      - name: Run guest booking API integration tests
+        run: node tests/http-integration.mjs
+        working-directory: reservation-prototype
+        env:
+          TEST_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
+          TEST_RUN_ID: ${{ github.run_id }}
+
+      - name: Apply cancellation, no-show and completion lifecycle transitions
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "UPDATE reservations SET status='cancelled' WHERE guest_name='CI TEST ${{ github.run_id }} A8'; UPDATE reservations SET status='no_show' WHERE guest_name='CI TEST ${{ github.run_id }} B4'; UPDATE reservations SET status='completed' WHERE guest_name='CI TEST ${{ github.run_id }} C2';"
+
+      - name: Verify cancelled, no-show and completed bookings release capacity
+        run: node tests/http-lifecycle.mjs
+        working-directory: reservation-prototype
+        env:
+          TEST_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
+          TEST_RUN_ID: ${{ github.run_id }}
+
+      - name: Seed isolated D1 fixture for reactivation conflict test
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "DELETE FROM reservation_tables WHERE reservation_id IN ('ci-reactivate-a','ci-reactivate-b'); DELETE FROM reservations WHERE id IN ('ci-reactivate-a','ci-reactivate-b'); INSERT INTO reservations (id,confirmation_code,guest_name,phone,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language) VALUES ('ci-reactivate-a','CI-REACT-A','CI Reactivation A','000',2,0,'2099-01-01','17:00',120,'2099-01-01','19:00','cancelled','staff','en'); INSERT INTO reservations (id,confirmation_code,guest_name,phone,party_size,thali_count,reservation_date,start_time,duration_minutes,end_date,end_time,status,source,language) VALUES ('ci-reactivate-b','CI-REACT-B','CI Reactivation B','000',2,0,'2099-01-01','18:00',120,'2099-01-01','20:00','confirmed','staff','en'); INSERT INTO reservation_tables (reservation_id,table_id) VALUES ('ci-reactivate-a',4); INSERT INTO reservation_tables (reservation_id,table_id) VALUES ('ci-reactivate-b',4);"
+
+      - name: Verify conflicting reservation cannot be reactivated
+        id: reactivation_attempt
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "UPDATE reservations SET status='confirmed' WHERE id='ci-reactivate-a';"
+
+      - name: Assert reactivation was blocked by the overlap trigger
+        if: always()
+        run: |
+          if [ "${{ steps.reactivation_attempt.outcome }}" != "failure" ]; then
+            echo "Expected the D1 overlap trigger to reject reactivation."
+            exit 1
+          fi
+          echo "PASS conflicting cancelled reservation cannot be reactivated"
+
+      - name: Verify failed reactivation left reservation cancelled
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "CREATE TEMP TABLE ci_assertion (ok INTEGER CHECK(ok=1)); INSERT INTO ci_assertion SELECT CASE WHEN (SELECT status FROM reservations WHERE id='ci-reactivate-a')='cancelled' THEN 1 ELSE 0 END; DROP TABLE ci_assertion;"
+
+      - name: Final cleanup and verify dining tables are preserved
+        if: always()
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "DELETE FROM reservation_tables WHERE reservation_id IN (SELECT id FROM reservations WHERE guest_name LIKE 'CI TEST %') OR reservation_id IN ('ci-reactivate-a','ci-reactivate-b'); DELETE FROM reservations WHERE guest_name LIKE 'CI TEST %' OR id IN ('ci-reactivate-a','ci-reactivate-b'); DELETE FROM staff_login_attempts; CREATE TEMP TABLE ci_assertion (ok INTEGER CHECK(ok=1)); INSERT INTO ci_assertion SELECT CASE WHEN (SELECT COUNT(*) FROM dining_tables)=9 AND (SELECT COUNT(*) FROM reservations)=0 AND (SELECT COUNT(*) FROM reservation_tables)=0 THEN 1 ELSE 0 END; DROP TABLE ci_assertion;"
