@@ -1,0 +1,97 @@
+name: Prepare Purpose reservations production database
+
+on:
+  push:
+    branches:
+      - reservation-system-prototype
+    paths:
+      - reservation-prototype/production-db.trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: purpose-reservations-production-db
+  cancel-in-progress: false
+
+jobs:
+  prepare-production-db:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out prototype branch
+        uses: actions/checkout@v4
+        with:
+          ref: reservation-system-prototype
+
+      - name: Create dedicated production D1 database
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 create purpose-reservations-production-db
+
+      - name: Apply base reservation schema
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --file=migrations/0001_initial.sql
+
+      - name: Apply overlap guard migration
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --file=migrations/0002_conflict_guards.sql
+
+      - name: Apply guest birthday migration
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --file=migrations/0003_guest_birthday.sql
+
+      - name: Apply Thursday Thali limit migration
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --file=migrations/0003_thursday_thali_limit.sql
+
+      - name: Apply email tracking migration
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --file=migrations/0004_email_delivery.sql
+
+      - name: Apply staff login throttle migration
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --file=migrations/0005_staff_login_throttle.sql
+
+      - name: Rebuild final reservation conflict guards
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --file=migrations/0006_rebuild_conflict_guards.sql
+
+      - name: Verify production database is clean and initialized
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --command "CREATE TABLE IF NOT EXISTS ci_assertion (ok INTEGER CHECK(ok=1)); DELETE FROM ci_assertion; INSERT INTO ci_assertion SELECT CASE WHEN (SELECT COUNT(*) FROM dining_tables)=9 AND (SELECT SUM(capacity) FROM dining_tables)=36 AND (SELECT COUNT(*) FROM reservations)=0 AND (SELECT COUNT(*) FROM reservation_tables)=0 AND (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name IN ('prevent_overlapping_table_assignment','prevent_reactivating_conflicting_reservation','enforce_thursday_thali_hourly_limit'))=3 THEN 1 ELSE 0 END; DROP TABLE ci_assertion; SELECT COUNT(*) AS dining_tables, SUM(capacity) AS total_seats FROM dining_tables; SELECT COUNT(*) AS reservations FROM reservations;"
