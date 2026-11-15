@@ -37,11 +37,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: "2541ff27a2bb36f951d9b3c6fbc0045a"
         run: |
           set -euo pipefail
-          DB_JSON="$(wrangler d1 list --json)"
-          DB_ID="$(echo "$DB_JSON" | jq -r '.[] | select(.name=="purpose-pos-test-db") | .uuid' | head -n1)"
-          if [ -z "$DB_ID" ] || [ "$DB_ID" = "null" ]; then
-            CREATE_JSON="$(wrangler d1 create purpose-pos-test-db --json)"
-            DB_ID="$(echo "$CREATE_JSON" | jq -r '.uuid // .result.uuid')"
+          DB_LIST="$(wrangler d1 list)"
+          DB_ID="$(printf '%s\n' "$DB_LIST" | grep -F 'purpose-pos-test-db' | grep -Eo '[0-9a-fA-F-]{36}' | head -n1 || true)"
+          if [ -z "$DB_ID" ]; then
+            CREATE_OUTPUT="$(wrangler d1 create purpose-pos-test-db)"
+            DB_ID="$(printf '%s\n' "$CREATE_OUTPUT" | grep -Eo '[0-9a-fA-F-]{36}' | head -n1 || true)"
           fi
           test -n "$DB_ID"
           test "$DB_ID" != "null"
