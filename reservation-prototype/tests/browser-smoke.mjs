@@ -1,8 +1,15 @@
 import { chromium } from "playwright";
+import { createServer } from "node:http";
+import { readFileSync } from "node:fs";
 const base=process.env.TEST_BASE_URL;
 if(!base) throw new Error("TEST_BASE_URL is required");
 const d=new Date();const delta=((4-d.getUTCDay()+7)%7)||7;d.setUTCDate(d.getUTCDate()+delta);
 const thursday=d.toISOString().slice(0,10);
+const wrapperHtml=readFileSync("../reservations.html","utf8");
+if(wrapperHtml.includes("tableagent.com")) throw new Error("Prepared reservation page still contains TableAgent links");
+const server=createServer((req,res)=>{res.writeHead(200,{"content-type":"text/html; charset=utf-8"});res.end(wrapperHtml)});
+await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
+const wrapperUrl=`http://127.0.0.1:${server.address().port}/`;
 const browser=await chromium.launch({headless:true});
 try{
  const page=await browser.newPage({viewport:{width:390,height:844}});
@@ -31,4 +38,18 @@ try{
   if(options.at(-1)!=="20:00"||options.includes("20:30")||options.includes("21:00")) throw new Error("Staff booking times must end at 8 pm");
  }
  console.log("PASS Playwright guest mobile layout, Thursday Thali UI, English/Spanish switching, staff login gate, and staff booking forms");
-}finally{await browser.close()}
+ const wrapperPage=await browser.newPage({viewport:{width:390,height:844}});
+ await wrapperPage.goto(wrapperUrl,{waitUntil:"networkidle"});
+ const frameSrc=await wrapperPage.locator("#reservationFrame").getAttribute("src");
+ if(!frameSrc||!frameSrc.includes("purpose-reservations-staging")) throw new Error("Prepared reservation page must embed the isolated staging Worker");
+ if((await wrapperPage.locator("body").innerText()).includes("TableAgent")) throw new Error("Prepared reservation page must not display TableAgent");
+ const embedded=wrapperPage.frameLocator("#reservationFrame");
+ await embedded.locator("#guestTitle").waitFor();
+ const embeddedDuration=await embedded.locator("#duration").innerText();
+ if(!embeddedDuration.includes("120 minutes")) throw new Error("Embedded guest form must show 120-minute seating");
+ const embeddedTimes=await embedded.locator("#time option").evaluateAll(nodes=>nodes.map(n=>n.value));
+ if(embeddedTimes.at(-1)!=="20:00") throw new Error("Embedded guest form must end arrivals at 8 pm");
+ await embedded.getByRole("button",{name:"Español"}).click();
+ if(!(await embedded.locator("#guestTitle").innerText()).includes("Reservar")) throw new Error("Embedded reservation form must support Spanish");
+ console.log("PASS prepared website reservation page embeds staging form, removes TableAgent and works in Spanish");
+}finally{await browser.close();server.close()}
