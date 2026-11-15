@@ -1,4 +1,18 @@
 name = "purpose-reservations-test"
 main = "worker.js"
 compatibility_date = "2026-11-14"
+account_id = "2541ff27a2bb36f951d9b3c6fbc0045a"
 workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "purpose-reservations-production-db"
+database_id = "b0b4b77b-07bd-47a2-9e8e-c5e6ab749456"
+
+[assets]
+directory = "./public-production"
+binding = "ASSETS"
+
+[vars]
+DEPLOYMENT_MODE = "production"
+SUPPRESS_EMAILS = "false"
