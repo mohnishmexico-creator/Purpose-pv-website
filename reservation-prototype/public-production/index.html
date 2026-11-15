@@ -71,7 +71,10 @@ function updateThaliField(){
  thali.onchange=()=>{ala.value=String(p-Number(thali.value));};
  ala.onchange=()=>{thali.value=String(p-Number(ala.value));};
 }
-document.getElementById('date').addEventListener('change',updateThaliField);
+function pvClock(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date());const v=Object.fromEntries(p.map(x=>[x.type,x.value]));return {date:v.year+'-'+v.month+'-'+v.day,time:v.hour+':'+v.minute}}
+function updatePastSlots(){const now=pvClock(),date=document.getElementById('date').value,select=document.getElementById('time');Array.from(select.options).forEach(o=>{if(o.value)o.disabled=date===now.date&&o.value<=now.time});if(select.selectedOptions[0]?.disabled){const next=Array.from(select.options).find(o=>o.value&&!o.disabled);if(next)select.value=next.value}}
+document.getElementById('date').addEventListener('change',()=>{updateThaliField();updatePastSlots()});
+window.addEventListener('focus',updatePastSlots);
 document.getElementById('party').addEventListener('change',updateThaliField);
 function setLang(l){lang=l;document.documentElement.lang=l;document.getElementById('enBtn').classList.toggle('active',l==='en');document.getElementById('esBtn').classList.toggle('active',l==='es');document.getElementById('guestTab').textContent=t('guest');document.getElementById('guestTitle').textContent=t('book');document.getElementById('guestSub').textContent=t('sub');document.getElementById('kitchenNotice').textContent=t('notice');['date','party','time','name','phone','email','birthday','requests'].forEach(k=>document.getElementById(k+'Label').textContent=t(k));document.getElementById('bookBtn').textContent=t('submit');document.getElementById('duration').textContent=t('duration');document.getElementById('thaliTitle').textContent=t('thaliTitle');document.getElementById('thaliLabel').textContent=t('thaliLabel');document.getElementById('thaliHelp').textContent=t('thaliHelp');document.getElementById('alacarteLabel').textContent=t('alacarteLabel');document.getElementById('alacarteHelp').textContent=t('alacarteHelp');document.getElementById('mealChoiceNote').textContent=t('mealNote');render()}
 window.addEventListener('message',event=>{if(!['https://purposepv.com','https://www.purposepv.com'].includes(event.origin))return;const data=event.data;if(data&&data.type==='purpose-set-language'&&['en','es'].includes(data.lang))setLang(data.lang)});
@@ -106,6 +109,6 @@ document.getElementById('bookingForm').addEventListener('submit',async e=>{
  }catch(err){result.textContent=err.message||'Could not complete reservation.'}
  finally{btn.disabled=false;btn.textContent=t('submit')}
 });
-function pvToday(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=Object.fromEntries(p.map(x=>[x.type,x.value]));return v.year+'-'+v.month+'-'+v.day}document.getElementById('date').min=pvToday();setLang('en');updateThaliField();
+function pvToday(){return pvClock().date}document.getElementById('date').min=pvToday();setLang('en');updateThaliField();updatePastSlots();
 </script>
 </body></html>
