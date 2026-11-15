@@ -58,8 +58,12 @@ jobs:
           const availabilityResponse = await fetch(base + "/api/availability?date=" + date + "&party_size=2&thali_count=2");
           const availability = await availabilityResponse.json();
           assert(availabilityResponse.ok && availability.thali_hourly_limit === 12 && Array.isArray(availability.available_times), "Production availability API failed");
+          assert(availability.available_times.at(-1) === "20:00" && availability.available_times.every(t => t <= "20:00"), "Production availability must stop at the 8 pm final arrival");
+          assert(guestHtml.includes("Standard seating: 120 minutes for all parties") && !guestHtml.includes("90 minutes"), "Production guest page must show 120-minute seating for all parties");
           const staffResponse = await fetch(base + "/staff");
-          assert(staffResponse.ok && (await staffResponse.text()).includes("Purpose"), "Production staff page failed");
+          const staffHtml = await staffResponse.text();
+          assert(staffResponse.ok && staffHtml.includes("Purpose"), "Production staff page failed");
+          assert(staffHtml.includes('value="20:00"') && !staffHtml.includes('value="20:30"') && !staffHtml.includes('value="21:00"'), "Production staff forms must end arrivals at 8 pm");
           const adminResponse = await fetch(base + "/api/admin/reservations?date=" + date);
           assert(adminResponse.status === 401, "Production staff API must reject unauthenticated requests");
           const testEndpoint = await fetch(base + "/api/test/smtp", {method:"POST",headers:{"content-type":"application/json","origin":base},body:"{}"});
