@@ -29,7 +29,7 @@ function isPastArrival(date,time){
   const now=pvDateTime();
   return date<now.date||(date===now.date&&time<=now.time);
 }
-function validTime(s){return /^([01]\\d|2[0-3]):[0-5]\\d$/.test(s||"");}
+function validTime(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||"");}
 function isPrivateEventBlocked(date,startTime,endDate,endTime){
   if(date!=="2026-11-15" || endDate!=="2026-11-15") return false;
   return startTime < "18:30" && endTime > "17:00";
