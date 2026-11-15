@@ -19,5 +19,6 @@ try{
  await page.goto(base+"/staff",{waitUntil:"networkidle"});
  if(await page.locator("#login").isHidden()) throw new Error("Staff login screen should be visible");
  if(await page.locator("#dashboard").isVisible()) throw new Error("Staff dashboard must stay hidden before login");
- console.log("PASS Playwright guest mobile layout, Thursday Thali UI, English/Spanish switching, and staff login gate");
+ if(await page.locator("#phoneForm").count()!==1||await page.locator("#walkinForm").count()!==1) throw new Error("Staff phone booking and walk-in forms are missing");
+ console.log("PASS Playwright guest mobile layout, Thursday Thali UI, English/Spanish switching, staff login gate, and staff booking forms");
 }finally{await browser.close()}
