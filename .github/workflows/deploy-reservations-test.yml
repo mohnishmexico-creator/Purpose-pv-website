@@ -99,6 +99,11 @@ jobs:
           const thursday = now.toISOString().slice(0,10);
           const availability = await check("/api/availability?date=" + thursday + "&party_size=2&thali_count=2", 200, "Thursday Thali availability");
           if (availability.thali_hourly_limit !== 12 || !Array.isArray(availability.available_times)) throw new Error("Availability payload mismatch");
+          const eventAvailability = await check("/api/availability?date=2026-11-15&party_size=2", 200, "Nov 15 private event availability");
+          if (eventAvailability.available_times.includes("17:00") || eventAvailability.available_times.includes("17:30") || eventAvailability.available_times.includes("18:00") || !eventAvailability.available_times.includes("18:30")) throw new Error("Private event block must hide arrivals before 6:30 pm and reopen at 6:30 pm: " + JSON.stringify(eventAvailability));
+          const blocked = await fetch(base + "/api/reservations", {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({guest_name:"CI Private Event Block",phone:"+523221090525",email:"ci@example.com",party_size:2,reservation_date:"2026-11-15",start_time:"18:00",language:"en"})});
+          if (blocked.status !== 409) throw new Error("Private event must reject a booking starting at 6:00 pm; received " + blocked.status);
+          console.log("PASS Nov 15 private event block and 6:30 pm reopening");
           const staff = await fetch(base + "/staff");
           if (!staff.ok || !(await staff.text()).includes("Purpose")) throw new Error("Staff page did not load correctly");
           console.log("PASS staff page: HTTP " + staff.status);
@@ -150,8 +155,6 @@ jobs:
           TEST_BASE_URL: https://purpose-reservations-staging.mohnishmexico.workers.dev
           TEST_RUN_ID: ${{ github.run_id }}
           TEST_ADMIN_TOKEN: ci-only-test-token
-          TEST_AUTH_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
-          SMTP_TEST_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
 
       - name: Apply cancellation, no-show and completion lifecycle transitions
         uses: cloudflare/wrangler-action@v3
