@@ -40,3 +40,21 @@ jobs:
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "reservation-prototype"
           command: d1 execute purpose-reservations-test-db --remote --command "SELECT r.id, r.guest_name, r.reservation_date, r.start_time, r.end_date, r.end_time, r.duration_minutes, r.status, r.source, rt.table_id FROM reservations r LEFT JOIN reservation_tables rt ON rt.reservation_id=r.id ORDER BY r.reservation_date, r.start_time, r.guest_name;"
+
+      - name: One-time clear of all isolated test bookings
+        if: contains(github.event.head_commit.message, '[CLEAR TEST BOOKINGS]')
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "DELETE FROM reservation_tables; DELETE FROM reservations; DELETE FROM staff_login_attempts;"
+
+      - name: Verify isolated test database is clear
+        if: contains(github.event.head_commit.message, '[CLEAR TEST BOOKINGS]')
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "SELECT (SELECT COUNT(*) FROM reservations) AS reservations_remaining, (SELECT COUNT(*) FROM reservation_tables) AS table_assignments_remaining, (SELECT COUNT(*) FROM staff_login_attempts) AS login_attempts_remaining, (SELECT COUNT(*) FROM dining_tables) AS dining_tables_preserved;"
