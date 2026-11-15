@@ -78,6 +78,19 @@ const patchData=await patchResponse.json();
 assert(patchResponse.ok&&patchData.reservation,"staff can edit notes and reassign the phone booking");
 console.log("PASS staff reservation editing and table reassignment");
 
+if(process.env.TEST_AUTH_BASE_URL){
+ const authBase=process.env.TEST_AUTH_BASE_URL;
+ const healthResponse=await fetch(authBase+"/api/health");
+ const health=await healthResponse.json();
+ assert(healthResponse.ok&&health.mode==="private-prototype","Reserved test Worker must remain isolated before promotion: "+JSON.stringify(health));
+ for(let i=0;i<5;i++){
+  const response=await fetch(authBase+"/api/admin/login",{method:"POST",headers:{"content-type":"application/json","origin":authBase},body:JSON.stringify({password:"ci-invalid-"+runId})});
+  assert(response.status===401,"Configured staff login should reject an invalid password with HTTP 401, received "+response.status);
+ }
+ const locked=await fetch(authBase+"/api/admin/login",{method:"POST",headers:{"content-type":"application/json","origin":authBase},body:JSON.stringify({password:"ci-invalid-"+runId})});
+ assert(locked.status===429,"Staff login should throttle the sixth attempt, received "+locked.status);
+ console.log("PASS reserved staff login configuration and five-attempt throttle");
+}
 if(process.env.SMTP_TEST_BASE_URL){
  const smtpBase=process.env.SMTP_TEST_BASE_URL;
  const smtpResponse=await fetch(smtpBase+"/api/test/smtp",{method:"POST",headers:{"content-type":"application/json","origin":smtpBase,"x-purpose-test-admin":process.env.TEST_ADMIN_TOKEN},body:"{}"});
