@@ -183,6 +183,45 @@ async function sendZohoMail(env,recipient,mail){
   }
 }
 
+async function verifyZohoSmtp(env){
+  if(!env.ZOHO_SMTP_PASSWORD)return {status:"not_configured"};
+  const username=env.ZOHO_SMTP_USER||"info@purposepv.com";
+  const socket=connect({hostname:"smtppro.zoho.com",port:465},{secureTransport:"on"});
+  const reader=socket.readable.getReader(),writer=socket.writable.getWriter();
+  const decoder=new TextDecoder();let buffer="";
+  async function reply(){
+    while(true){
+      const end=buffer.search(/\\r?\\n/);
+      if(end>=0){
+        const line=buffer.slice(0,end);
+        buffer=buffer.slice(end+(buffer.slice(end).startsWith("\\r\\n")?2:1));
+        const match=line.match(/^(\\d{3})([ -])(.*)$/);
+        if(match&&match[2]===" ")return Number(match[1]);
+        continue;
+      }
+      const part=await reader.read();
+      if(part.done)throw new Error("SMTP_CONNECTION_CLOSED");
+      buffer+=decoder.decode(part.value,{stream:true});
+    }
+  }
+  async function command(line,expected){
+    await writer.write(new TextEncoder().encode(line+"\\r\\n"));
+    const status=await reply();
+    if(!expected.includes(status))throw new Error("SMTP_COMMAND_FAILED_"+status);
+  }
+  try{
+    if(await reply()!==220)throw new Error("SMTP_GREETING_FAILED");
+    await command("EHLO purposepv.com",[250]);
+    await command("AUTH PLAIN "+base64Utf8("\\0"+username+"\\0"+env.ZOHO_SMTP_PASSWORD),[235]);
+    await command("QUIT",[221]);
+    return {status:"authenticated"};
+  }finally{
+    try{await writer.close()}catch{}
+    try{await reader.cancel()}catch{}
+    try{socket.close()}catch{}
+  }
+}
+
 async function sendZohoConfirmation(env,reservation){
   return sendZohoMail(env,reservation.email,confirmationEmail(reservation));
 }
@@ -196,6 +235,19 @@ export default {
   if(req.method==="GET" && (url.pathname==="/" || url.pathname==="/index.html") && env.ASSETS)
     return env.ASSETS.fetch(new Request(new URL("/index.html",req.url),req));
   if(!env.DB) return json({error:"D1 binding DB is not configured."},503);
+  if(url.pathname==="/api/test/smtp"&&req.method==="POST"){
+    if(env.SUPPRESS_EMAILS!=="true"||!env.TEST_ADMIN_TOKEN||req.headers.get("x-purpose-test-admin")!==env.TEST_ADMIN_TOKEN)
+      return json({error:"Not found."},404);
+    if(!sameOrigin(req))return json({error:"Invalid origin."},403);
+    try{
+      const result=await verifyZohoSmtp(env);
+      if(result.status!=="authenticated")return json({error:"Zoho SMTP credentials are not configured."},503);
+      return json(result);
+    }catch(e){
+      console.error("SMTP connectivity test failed:",String(e?.message||e));
+      return json({error:"Zoho SMTP authentication failed.",code:String(e?.message||"SMTP_ERROR")},502);
+    }
+  }
   if(url.pathname==="/api/admin/login"&&req.method==="POST"){
     if(!sameOrigin(req))return json({error:"Invalid origin."},403);
     if(!env.ADMIN_PASSWORD||!env.ADMIN_SESSION_SECRET)return json({error:"Staff login is not configured."},503);
