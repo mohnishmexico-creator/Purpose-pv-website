@@ -1,6 +1,6 @@
 import { connect } from "cloudflare:sockets";
 import { chooseTables, overlaps } from "./allocation.mjs";
-import { seatingDuration, weekdayForDate, isArrivalTime } from "./booking-rules.mjs";
+import { seatingDuration, weekdayForDate, isArrivalTime, isBeyondBookingWindow } from "./booking-rules.mjs";
 import { thaliRemaining, exceedsThaliLimit } from "./thali-rules.mjs";
 import { validateTableSelection } from "./staff-rules.mjs";
 
@@ -484,8 +484,8 @@ export default {
     const party=Number(party_size),thaliCount=Number(body?.thali_count||0);
     if(!guest_name?.trim()||guest_name.trim().length>100||!phone?.trim()||phone.trim().length>40||!email?.trim()||email.trim().length>254||!/^\S+@\S+\.\S+$/.test(email.trim())||!Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
-       !validDate(reservation_date)||!validTime(start_time)||isPastArrival(reservation_date,start_time)||!validBirthday(birthday)||!["en","es"].includes(language)||String(special_requests||"").length>1000)
-      return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
+       !validDate(reservation_date)||isBeyondBookingWindow(reservation_date,pvToday(),28)||!validTime(start_time)||isPastArrival(reservation_date,start_time)||!validBirthday(birthday)||!["en","es"].includes(language)||String(special_requests||"").length>1000)
+      return json({error:"Please provide valid guest details and choose a date within the next 4 weeks, a valid time and a party size (1–8)."},400);
     const weekday=weekdayForDate(reservation_date);
     if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
     if(thaliCount>0&&weekday!==4) return json({error:"Thali reservations are available on Thursdays only."},400);
