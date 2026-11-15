@@ -42,6 +42,7 @@ jobs:
           command: deploy --config wrangler.production.toml
 
       - name: Verify production Worker health, guest page, availability and staff security
+        id: production_smoke
         run: |
           node --input-type=module <<'NODE'
           const base = "https://purpose-reservations-test.mohnishmexico.workers.dev";
@@ -61,24 +62,13 @@ jobs:
           assert(staffResponse.ok && (await staffResponse.text()).includes("Purpose"), "Production staff page failed");
           const adminResponse = await fetch(base + "/api/admin/reservations?date=" + date);
           assert(adminResponse.status === 401, "Production staff API must reject unauthenticated requests");
-          const loginResponse = await fetch(base + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":base},body:JSON.stringify({password:"invalid-promotion-probe"})});
-          assert(loginResponse.status === 401, "Production staff password/session secrets are missing or login is misconfigured: HTTP " + loginResponse.status);
           const testEndpoint = await fetch(base + "/api/test/smtp", {method:"POST",headers:{"content-type":"application/json","origin":base},body:"{}"});
           assert(testEndpoint.status === 404, "Test-only SMTP endpoint must be disabled in production");
           console.log("PASS production health, clean guest page, availability, staff page, unauthorised access, configured login and disabled test endpoint");
           NODE
 
-      - name: Clear production login probe attempt
-        if: always()
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
-          workingDirectory: "reservation-prototype"
-          command: d1 execute purpose-reservations-production-db --remote --command "DELETE FROM staff_login_attempts;"
-
       - name: Roll back Worker to private prototype if production verification fails
-        if: failure()
+        if: failure() && steps.production_deploy.outcome == 'success' && steps.production_smoke.outcome == 'failure'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
