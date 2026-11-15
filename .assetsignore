@@ -1,3 +1,8 @@
 wrangler.toml
 .assetsignore
 README_DEPLOY.txt
+node_modules/
+.github/
+reservation-prototype/
+.git/
+.wrangler/
