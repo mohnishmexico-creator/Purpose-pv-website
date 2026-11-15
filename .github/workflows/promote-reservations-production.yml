@@ -1,0 +1,87 @@
+name: Promote Purpose reservations Worker
+
+on:
+  push:
+    branches:
+      - reservation-system-prototype
+    paths:
+      - reservation-prototype/production-deploy.trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: purpose-reservations-production-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out prototype branch
+        uses: actions/checkout@v4
+        with:
+          ref: reservation-system-prototype
+
+      - name: Verify production D1 is empty before promotion
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --command "CREATE TABLE IF NOT EXISTS ci_assertion (ok INTEGER CHECK(ok=1)); DELETE FROM ci_assertion; INSERT INTO ci_assertion SELECT CASE WHEN (SELECT COUNT(*) FROM dining_tables)=9 AND (SELECT SUM(capacity) FROM dining_tables)=36 AND (SELECT COUNT(*) FROM reservations)=0 AND (SELECT COUNT(*) FROM reservation_tables)=0 THEN 1 ELSE 0 END; DROP TABLE ci_assertion;"
+
+      - name: Promote tested Worker code to production D1 and assets
+        id: production_deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: deploy --config wrangler.production.toml
+
+      - name: Verify production Worker health, guest page, availability and staff security
+        run: |
+          node --input-type=module <<'NODE'
+          const base = "https://purpose-reservations-test.mohnishmexico.workers.dev";
+          const assert = (condition, message) => { if (!condition) throw new Error(message); };
+          const healthResponse = await fetch(base + "/api/health");
+          const health = await healthResponse.json();
+          assert(healthResponse.ok && health.ok && health.mode === "production", "Production health endpoint did not report production mode: " + JSON.stringify(health));
+          const guestResponse = await fetch(base + "/");
+          const guestHtml = await guestResponse.text();
+          assert(guestResponse.ok && guestHtml.includes("bookingForm") && !guestHtml.includes("PRIVATE TEST") && !guestHtml.toLowerCase().includes("preview"), "Production guest page is not cleanly published");
+          const now = new Date(); const delta = ((4-now.getUTCDay()+7)%7)||7; now.setUTCDate(now.getUTCDate()+delta);
+          const date = now.toISOString().slice(0,10);
+          const availabilityResponse = await fetch(base + "/api/availability?date=" + date + "&party_size=2&thali_count=2");
+          const availability = await availabilityResponse.json();
+          assert(availabilityResponse.ok && availability.thali_hourly_limit === 12 && Array.isArray(availability.available_times), "Production availability API failed");
+          const staffResponse = await fetch(base + "/staff");
+          assert(staffResponse.ok && (await staffResponse.text()).includes("Purpose"), "Production staff page failed");
+          const adminResponse = await fetch(base + "/api/admin/reservations?date=" + date);
+          assert(adminResponse.status === 401, "Production staff API must reject unauthenticated requests");
+          const loginResponse = await fetch(base + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":base},body:JSON.stringify({password:"invalid-promotion-probe"})});
+          assert(loginResponse.status === 401, "Production staff password/session secrets are missing or login is misconfigured: HTTP " + loginResponse.status);
+          const testEndpoint = await fetch(base + "/api/test/smtp", {method:"POST",headers:{"content-type":"application/json","origin":base},body:"{}"});
+          assert(testEndpoint.status === 404, "Test-only SMTP endpoint must be disabled in production");
+          console.log("PASS production health, clean guest page, availability, staff page, unauthorised access, configured login and disabled test endpoint");
+          NODE
+
+      - name: Clear production login probe attempt
+        if: always()
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-production-db --remote --command "DELETE FROM staff_login_attempts;"
+
+      - name: Roll back Worker to private prototype if production verification fails
+        if: failure()
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: deploy --config wrangler.rollback.toml
