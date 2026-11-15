@@ -50,6 +50,28 @@ jobs:
           workingDirectory: "reservation-prototype"
           command: deploy
 
+      - name: Validate production Worker bundle without deploying
+        run: |
+          node --check worker.js
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const guest = fs.readFileSync("public-production/index.html","utf8");
+          const staff = fs.readFileSync("public-production/staff.html","utf8");
+          if (guest.includes("PRIVATE TEST") || guest.toLowerCase().includes("preview") || guest.includes("tableagent.com")) throw new Error("Production guest assets contain test or TableAgent text");
+          if (staff.includes("PRIVATE TEST") || staff.toLowerCase().includes("preview") || staff.includes("tableagent.com")) throw new Error("Production staff assets contain test or TableAgent text");
+          if (!guest.includes("purpose-set-language")) throw new Error("Production guest page is missing language synchronization");
+          console.log("PASS production assets are clean and bilingual");
+          NODE
+        working-directory: reservation-prototype
+
+      - name: Dry-run production Worker deployment
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: deploy --dry-run --config wrangler.production.toml
+
       - name: Run read-only HTTP smoke tests against isolated test Worker
         env:
           TEST_BASE_URL: https://purpose-reservations-staging.mohnishmexico.workers.dev
