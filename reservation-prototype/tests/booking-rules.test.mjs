@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { seatingDuration, weekdayForDate, isArrivalTime } from "../booking-rules.mjs";
+import { seatingDuration, weekdayForDate, isArrivalTime, isBeyondBookingWindow } from "../booking-rules.mjs";
 
 test("all parties receive 120-minute seating",()=>{
   for(const party of [1,2,3,4,5,6,7,8]) assert.equal(seatingDuration(party,"17:00"),120);
@@ -17,4 +17,12 @@ test("weekday calculation uses the supplied calendar date",()=>{
   assert.equal(weekdayForDate("2026-11-16"),1);
   assert.equal(weekdayForDate("2026-11-19"),4);
   assert.equal(weekdayForDate("2026-11-15"),0);
+});
+
+test("booking window allows today through 28 days ahead and rejects day 29",()=>{
+  assert.equal(isBeyondBookingWindow("2026-11-15","2026-11-15"),false);
+  assert.equal(isBeyondBookingWindow("2026-12-13","2026-11-15"),false);
+  assert.equal(isBeyondBookingWindow("2026-12-14","2026-11-15"),true);
+  assert.equal(isBeyondBookingWindow("2026-11-14","2026-11-15"),true);
+  assert.equal(isBeyondBookingWindow("not-a-date","2026-11-15"),true);
 });
