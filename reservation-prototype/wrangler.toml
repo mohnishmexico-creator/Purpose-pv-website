@@ -14,5 +14,6 @@ directory = "./public"
 binding = "ASSETS"
 
 [vars]
+DEPLOYMENT_MODE = "private-prototype"
 SUPPRESS_EMAILS = "true"
 TEST_ADMIN_TOKEN = "ci-only-test-token"
