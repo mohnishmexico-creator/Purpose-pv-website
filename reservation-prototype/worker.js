@@ -14,7 +14,7 @@ function addMinutes(date,time,minutes){
     time:`${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`};
 }
 function validDate(s){
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(s||""))return false;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s||""))return false;
   const d=new Date(s+"T12:00:00Z");
   return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===s;
 }
@@ -416,7 +416,7 @@ export default {
     let body;try{body=await req.json();}catch{return json({error:"Invalid JSON."},400);}
     const {guest_name,phone,email,party_size,reservation_date,start_time,language="en",special_requests=null,birthday=null}=body||{};
     const party=Number(party_size),thaliCount=Number(body?.thali_count||0);
-    if(!guest_name?.trim()||!phone?.trim()||!email?.trim()||!/^\S+@\S+\.\S+$/.test(email.trim())||!Number.isInteger(party)||party<1||party>8||
+    if(!guest_name?.trim()||guest_name.trim().length>100||!phone?.trim()||phone.trim().length>40||!email?.trim()||email.trim().length>254||!/^\S+@\S+\.\S+$/.test(email.trim())||!Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
        !validDate(reservation_date)||isPastDate(reservation_date)||!validTime(start_time)||!validBirthday(birthday)||!["en","es"].includes(language)||String(special_requests||"").length>1000)
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
