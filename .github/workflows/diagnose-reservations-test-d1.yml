@@ -67,21 +67,29 @@ jobs:
           workingDirectory: "reservation-prototype"
           command: secret list
 
+      - name: List Cloudflare D1 databases (read-only)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 list
+
       - name: Inspect Purpose production Cloudflare routes (read-only)
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT_ID: "2541ff27a2bb36f951d9b3c6fbc0045a"
         run: |
           set +e
+          echo "Existing Worker custom domains:"
+          domain_json=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/domains")
+          echo "$domain_json" | jq -r '.result[]? | [.hostname, (.service // .script // "worker")] | @tsv'
           zone_json=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones?name=purposepv.com")
           zone_id=$(echo "$zone_json" | jq -r '.result[0].id // empty')
           if [ -z "$zone_id" ]; then
-            echo "Zone details are not available to this API token."
+            echo "Zone routes cannot be inspected with the current API token (Zone:Read is not available)."
             exit 0
           fi
           echo "Existing Worker routes for purposepv.com:"
           route_json=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/zones/$zone_id/workers/routes")
-          echo "$route_json" | jq -r '.result[]? | "  (.pattern) -> (.script // "custom-domain")"'
-          echo "Existing Worker custom domains:"
-          domain_json=$(curl -sS -H "Authorization: Bearer $CF_API_TOKEN" -H "Content-Type: application/json" "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/domains")
-          echo "$domain_json" | jq -r '.result[]? | "  (.hostname) -> (.service // .script // "worker")"'
+          echo "$route_json" | jq -r '.result[]? | [.pattern, (.script // "custom-domain")] | @tsv'
