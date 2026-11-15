@@ -281,7 +281,7 @@ export default {
   if(url.pathname==="/api/admin/session"&&req.method==="GET")
     return json({authenticated:await isAdmin(req,env)});
   if(url.pathname==="/api/health" && req.method==="GET")
-    return json({ok:true,service:"purpose-reservations",mode:"private-prototype"});
+    return json({ok:true,service:"purpose-reservations",mode:env.DEPLOYMENT_MODE||"private-prototype"});
   if(url.pathname==="/api/admin/reservations" && req.method==="GET"){
     if(!await isAdmin(req,env)) return json({error:"Unauthorized"},401);
     const date=url.searchParams.get("date");
