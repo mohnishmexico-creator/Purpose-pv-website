@@ -63,12 +63,28 @@ jobs:
           }
           const health = await check("/api/health", 200, "health endpoint");
           if (!health.ok || health.mode !== "private-prototype") throw new Error("Health payload mismatch");
-          const availability = await check("/api/availability?date=2026-11-19&party_size=2&thali_count=2", 200, "Thursday Thali availability");
+          const guest = await fetch(base + "/");
+          const guestHtml = await guest.text();
+          if (!guest.ok || !guestHtml.includes("Reservations") || !guestHtml.includes("bookingForm")) throw new Error("Guest booking page did not load correctly");
+          console.log("PASS guest booking page: HTTP " + guest.status);
+          const now = new Date();
+          const delta = ((4 - now.getUTCDay() + 7) % 7) || 7;
+          now.setUTCDate(now.getUTCDate() + delta);
+          const thursday = now.toISOString().slice(0,10);
+          const availability = await check("/api/availability?date=" + thursday + "&party_size=2&thali_count=2", 200, "Thursday Thali availability");
           if (availability.thali_hourly_limit !== 12 || !Array.isArray(availability.available_times)) throw new Error("Availability payload mismatch");
           const staff = await fetch(base + "/staff");
           if (!staff.ok || !(await staff.text()).includes("Purpose")) throw new Error("Staff page did not load correctly");
           console.log("PASS staff page: HTTP " + staff.status);
-          await check("/api/admin/reservations?date=2026-11-19", 401, "staff API rejects unauthenticated access");
+          const session = await check("/api/admin/session", 200, "staff session endpoint");
+          if (session.authenticated !== false) throw new Error("Unauthenticated session should not be authenticated");
+          await check("/api/admin/reservations?date=" + thursday, 401, "staff reservations API rejects unauthenticated access");
+          await check("/api/tables", 401, "table API rejects unauthenticated access");
+          const badOrigin = await fetch(base + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":"https://example.invalid"},body:JSON.stringify({password:"invalid-ci-probe"})});
+          if (badOrigin.status !== 403) throw new Error("Login must reject cross-origin requests");
+          const loginProbe = await fetch(base + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":base},body:JSON.stringify({password:"invalid-ci-probe"})});
+          if (![401,503].includes(loginProbe.status)) throw new Error("Unexpected staff login response: " + loginProbe.status);
+          console.log("Staff login configuration: " + (loginProbe.status === 401 ? "configured" : "NOT CONFIGURED (needs production secret setup)"));
           console.log("All read-only HTTP smoke tests passed.");
           NODE
 
