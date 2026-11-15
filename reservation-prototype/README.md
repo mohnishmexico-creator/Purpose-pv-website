@@ -2,7 +2,7 @@
 
 This branch is isolated from `main`. It does not change the live website, live reservation page, or TableAgent.
 
-## Owner-confirmed floor plan
+## Configured floor plan — owner confirmation required before launch
 | Table | Seats |
 |---|---:|
 | 1 | 8 |
