@@ -13,7 +13,17 @@ function addMinutes(date,time,minutes){
   return {date:`${dt.getUTCFullYear()}-${pad(dt.getUTCMonth()+1)}-${pad(dt.getUTCDate())}`,
     time:`${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}`};
 }
-function validDate(s){return /^\d{4}-\d{2}-\d{2}$/.test(s||"") && !Number.isNaN(Date.parse(s+"T12:00:00Z"));}
+function validDate(s){
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(s||""))return false;
+  const d=new Date(s+"T12:00:00Z");
+  return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===s;
+}
+function pvToday(){
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const values=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+  return values.year+"-"+values.month+"-"+values.day;
+}
+function isPastDate(s){return s<pvToday();}
 function validTime(s){return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||"");}
 function validBirthday(s){ if(s==null||s==="") return true; if(!/^\d{2}-\d{2}$/.test(s)) return false; const [m,d]=s.split("-").map(Number); const dt=new Date(Date.UTC(2000,m-1,d)); return dt.getUTCMonth()===m-1 && dt.getUTCDate()===d; }
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{
@@ -324,8 +334,8 @@ export default {
     let body;try{body=await req.json()}catch{return json({error:"Invalid JSON."},400)}
     const party=Number(body.party_size),thali=Number(body.thali_count||0),date=body.reservation_date,time=body.start_time;
     const name=String(body.guest_name||"Walk-in").trim(),phone=String(body.phone||"").trim();
-    if(!validDate(date)||!validTime(time)||!Number.isInteger(party)||party<1||party>8||
-       !Number.isInteger(thali)||thali<0||thali>party||!isArrivalTime(time))
+    if(!validDate(date)||isPastDate(date)||!validTime(time)||!Number.isInteger(party)||party<1||party>8||
+       !Number.isInteger(thali)||thali<0||thali>party||!isArrivalTime(time)||name.length>100||phone.length>40)
       return json({error:"Provide a valid date, arrival time, party size (1–8) and Thali count."},400);
     const weekday=weekdayForDate(date);
     if(weekday===1)return json({error:"Purpose is closed on Mondays."},400);
@@ -374,8 +384,8 @@ export default {
     const thaliCount=Number(url.searchParams.get("thali_count")||0);
     if(!Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party)
       return json({error:"thali_count must be between 0 and party_size."},400);
-    if(!validDate(date)||!Number.isInteger(party)||party<1||party>8)
-      return json({error:"Provide a valid date and party_size from 1 to 8."},400);
+    if(!validDate(date)||isPastDate(date)||!Number.isInteger(party)||party<1||party>8)
+      return json({error:"Choose today or a future date and a party size from 1 to 8."},400);
     const weekday=new Date(date+"T12:00:00Z").getUTCDay();
     if(weekday===1) return json({date,party_size:party,available_times:[],message:"Closed Mondays."});
     const isThursday=weekday===4;
@@ -408,7 +418,7 @@ export default {
     const party=Number(party_size),thaliCount=Number(body?.thali_count||0);
     if(!guest_name?.trim()||!phone?.trim()||!email?.trim()||!/^\S+@\S+\.\S+$/.test(email.trim())||!Number.isInteger(party)||party<1||party>8||
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
-       !validDate(reservation_date)||!validTime(start_time)||!validBirthday(birthday)||!["en","es"].includes(language))
+       !validDate(reservation_date)||isPastDate(reservation_date)||!validTime(start_time)||!validBirthday(birthday)||!["en","es"].includes(language)||String(special_requests||"").length>1000)
       return json({error:"Please provide valid guest details, date, time and party size (1–8)."},400);
     const weekday=weekdayForDate(reservation_date);
     if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
