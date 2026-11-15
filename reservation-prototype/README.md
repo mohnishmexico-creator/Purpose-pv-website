@@ -24,6 +24,7 @@ Automatic assignment always chooses the smallest suitable single table; it never
 - Last available arrival is 8:00 pm, so every reservation ends by the 10:00 pm closing time.
 - Last kitchen order: 9:30 pm. Display this note clearly in the guest booking flow and confirmation; do not display a required departure time.
 - Tuesday–Sunday, 5:00–8:00 pm arrival slots every 30 minutes; closed Mondays.
+- Same-day arrival slots that have already passed are hidden and rejected by the guest, phone-booking and walk-in APIs.
 - Thursday bookings let each guest be designated Thali or à la carte within the same party. The booking stores the Thali guest count and the remaining party members are à la carte.
 - Thali allocation is capped at 12 guests per clock hour on Thursdays (5–6, 6–7, 7–8, 8–9, and 9–10 pm). The cap counts guests, not reservations; à la carte guests do not consume the allocation. Cancelled/completed/no-show reservations release the allocation.
 - The guest flow requests a Thali count from zero through the party size on Thursdays only; non-Thursdays are à la carte.
