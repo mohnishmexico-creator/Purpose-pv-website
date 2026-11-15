@@ -32,3 +32,11 @@ jobs:
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "reservation-prototype"
           command: d1 execute purpose-reservations-test-db --remote --command "SELECT r.id, r.guest_name, r.reservation_date, r.start_time, r.end_date, r.end_time, r.duration_minutes, r.status, rt.table_id FROM reservations r JOIN reservation_tables rt ON rt.reservation_id=r.id WHERE rt.table_id=4 ORDER BY r.reservation_date, r.start_time;"
+
+      - name: Read all current test reservations and assignments
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
+          workingDirectory: "reservation-prototype"
+          command: d1 execute purpose-reservations-test-db --remote --command "SELECT r.id, r.guest_name, r.reservation_date, r.start_time, r.end_date, r.end_time, r.duration_minutes, r.status, r.source, rt.table_id FROM reservations r LEFT JOIN reservation_tables rt ON rt.reservation_id=r.id ORDER BY r.reservation_date, r.start_time, r.guest_name;"
