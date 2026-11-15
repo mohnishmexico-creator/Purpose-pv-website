@@ -1,4 +1,4 @@
-name = "purpose-reservations-test"
+name = "purpose-reservations-staging"
 main = "worker.js"
 compatibility_date = "2026-11-14"
 account_id = "2541ff27a2bb36f951d9b3c6fbc0045a"
