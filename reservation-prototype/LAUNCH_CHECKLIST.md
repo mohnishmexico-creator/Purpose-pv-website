@@ -34,8 +34,8 @@ This is a launch runbook only. The live website and TableAgent must remain uncha
 1. Manually run the GitHub Actions workflow **Promote Purpose reservations Worker**. This is the only workflow that deploys the production Worker and production D1 binding.
 2. Confirm the workflow's production health, guest page, 8:00 pm final arrival, 120-minute seating copy, staff page, unauthenticated API protection, and disabled test-only SMTP endpoint all pass.
 3. Change the iframe and fallback URL in the prepared root `reservations.html` from the staging Worker URL to the production Worker URL.
-4. Keep the website schema's `acceptsReservations` / `acceptsReservaciones` URLs pointed at `https://purposepv.com/reservations`.
-5. Deploy the website's reservation-page and schema changes to the `main` branch / Cloudflare Pages.
+4. Apply the prepared `reservations.html`, `index.html`, `es/index.html`, `menu/index.html`, and `es/menu/index.html` changes to `main`. The homepage schemas must point to `https://purposepv.com/reservations`, and all menu reservation links must point to the new page.
+5. Deploy the website's reservation-page, menu-link and schema changes to the `main` branch / Cloudflare Pages.
 6. Verify the public page and staff page on the live domain. Perform an owner-approved real test reservation and confirm the guest email and owner notification arrive.
 7. Only after the new flow is confirmed and any future TableAgent reservations are transferred, disable TableAgent booking availability and remove any remaining TableAgent booking links.
 
