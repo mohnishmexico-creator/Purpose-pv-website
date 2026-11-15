@@ -42,6 +42,42 @@ let capped = await postBooking("CAP1", {time:"17:00",party:1,thali:1});
 assert(capped.response.status===409, "13th Thali guest in the same clock hour must be rejected");
 console.log("PASS 12-Thali-per-hour limit rejects the 13th guest");
 
+async function staffPost(path, body, method="POST") {
+  return fetch(base+path,{method,headers:{"content-type":"application/json","origin":base,"x-purpose-test-admin":process.env.TEST_ADMIN_TOKEN},body:JSON.stringify(body)});
+}
+const phoneResponse=await staffPost("/api/admin/reservations",{
+  guest_name:prefix+" PHONE",phone:"+52 000 000 0001",email:"",
+  party_size:2,thali_count:0,reservation_date:thursday,start_time:"17:00",
+  language:"en",special_requests:"Automated phone booking test"
+});
+const phoneData=await phoneResponse.json();
+assert(phoneResponse.status===201&&phoneData.ok&&phoneData.source==="phone","staff phone reservation should be created: "+JSON.stringify(phoneData));
+assert(Array.isArray(phoneData.table_ids)&&phoneData.table_ids.length===1,"phone reservation must receive one suitable table");
+console.log("PASS staff phone reservation creation and automatic single-table assignment");
+
+const walkinResponse=await staffPost("/api/admin/walkins",{
+  guest_name:prefix+" WALKIN",phone:"+52 000 000 0002",party_size:2,thali_count:0,
+  reservation_date:thursday,start_time:"18:00"
+});
+const walkinData=await walkinResponse.json();
+assert(walkinResponse.status===201&&walkinData.ok,"staff walk-in should be created: "+JSON.stringify(walkinData));
+console.log("PASS staff walk-in creation");
+
+const staffListResponse=await fetch(base+"/api/admin/reservations?date="+thursday,{headers:{"x-purpose-test-admin":process.env.TEST_ADMIN_TOKEN}});
+const staffList=await staffListResponse.json();
+assert(staffListResponse.ok&&staffList.reservations.some(r=>r.guest_name===prefix+" PHONE"&&r.source==="phone"),"staff reservation list should include phone booking");
+assert(staffList.reservations.some(r=>r.guest_name===prefix+" WALKIN"&&r.source==="walk_in"&&r.status==="seated"),"staff reservation list should show seated walk-in");
+console.log("PASS staff reservation list and source/status tracking");
+
+const phoneRecord=staffList.reservations.find(r=>r.guest_name===prefix+" PHONE");
+const patchResponse=await fetch(base+"/api/reservations/"+encodeURIComponent(phoneRecord.id),{
+  method:"PATCH",headers:{"content-type":"application/json","origin":base,"x-purpose-test-admin":process.env.TEST_ADMIN_TOKEN},
+  body:JSON.stringify({internal_notes:"CI verified staff edit",table_ids:[9]})
+});
+const patchData=await patchResponse.json();
+assert(patchResponse.ok&&patchData.reservation,"staff can edit notes and reassign the phone booking");
+console.log("PASS staff reservation editing and table reassignment");
+
 let c = await postBooking("C2", {time:"19:00",party:2,thali:0});
 assert(c.response.status===201 && c.data.duration_minutes===90, "standard 1–3 guest booking should be 90 minutes");
 console.log("PASS 1–3 guest standard seating: 90 minutes");
