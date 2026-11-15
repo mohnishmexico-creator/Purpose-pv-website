@@ -59,7 +59,7 @@ jobs:
           workingDirectory: "reservation-prototype"
           command: d1 execute purpose-reservations-test-db --remote --command "SELECT (SELECT COUNT(*) FROM reservations) AS reservations_remaining, (SELECT COUNT(*) FROM reservation_tables) AS table_assignments_remaining, (SELECT COUNT(*) FROM staff_login_attempts) AS login_attempts_remaining, (SELECT COUNT(*) FROM dining_tables) AS dining_tables_preserved;"
 
-      - name: List isolated test Worker secret names only
+      - name: List staging Worker secret names only
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
