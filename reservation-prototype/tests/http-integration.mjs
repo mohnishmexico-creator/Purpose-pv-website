@@ -128,6 +128,24 @@ const pastAvailability=await fetch(base+`/api/availability?date=${pastDate}&part
 assert(pastAvailability.status===400,"past availability dates must be rejected");
 console.log("PASS server-side date validation rejects past and impossible dates");
 
+const pvParts=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(new Date()).map(p=>[p.type,p.value]));
+const pvDate=pvParts.year+"-"+pvParts.month+"-"+pvParts.day,pvTime=pvParts.hour+":"+pvParts.minute;
+const pastSlot=["17:00","17:30","18:00","18:30","19:00","19:30","20:00"].filter(t=>t<=pvTime).at(-1);
+if(pastSlot){
+ const todayAvailability=await fetch(base+`/api/availability?date=${pvDate}&party_size=2`);
+ const todayData=await todayAvailability.json();
+ assert(todayAvailability.ok&&!todayData.available_times.includes(pastSlot),"Availability must hide today's past arrival slots");
+ const guestPast=await postBooking("PASTTIME",{date:pvDate,time:pastSlot,party:2,thali:0});
+ assert(guestPast.response.status===400,"Guest API must reject today's past arrival slots");
+ const phonePast=await staffPost("/api/admin/reservations",{guest_name:prefix+" PHONE PAST",phone:"+52 000 000 0091",email:"",party_size:2,thali_count:0,reservation_date:pvDate,start_time:pastSlot,language:"en"});
+ assert(phonePast.status===400,"Staff phone API must reject today's past arrival slots");
+ const walkinPast=await staffPost("/api/admin/walkins",{guest_name:prefix+" WALKIN PAST",phone:"+52 000 000 0092",party_size:2,thali_count:0,reservation_date:pvDate,start_time:pastSlot});
+ assert(walkinPast.status===400,"Staff walk-in API must reject today's past arrival slots");
+ console.log("PASS today's past arrival slots are hidden and rejected for guests, phone bookings and walk-ins");
+}else{
+ console.log("SKIP same-day past-slot test because no reservation slot has passed yet in Puerto Vallarta");
+}
+
 const availability = await fetch(base+`/api/availability?date=${thursday}&party_size=1&thali_count=1`);
 const av = await availability.json();
 assert(availability.ok && !av.available_times.includes("17:00"), "availability must hide a fully allocated Thali hour");
