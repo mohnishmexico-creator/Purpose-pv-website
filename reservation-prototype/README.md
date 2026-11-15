@@ -16,7 +16,7 @@ This branch is isolated from `main`. It does not change the live website, live r
 | 9 | 6 |
 | **Total** | **36** |
 
-No table-combination rules are assumed.
+Automatic assignment always chooses the smallest suitable single table; it never combines tables. Staff can manually select multiple tables when needed.
 
 ## Reservation and closing rules
 - Nine tables (IDs 1–9).
@@ -30,7 +30,7 @@ No table-combination rules are assumed.
 - The guest flow requests a Thali count from zero through the party size on Thursdays only; non-Thursdays are à la carte.
 - Availability is calculated from table occupancy intervals.
 - Guest booking interface is English/Spanish.
-- Staff workflow will support phone bookings, walk-ins, seating extensions, reassignment and release.
+- Staff workflow supports phone reservations, walk-ins, reservation listing, table reassignment, internal notes, and status updates (seated, completed, cancelled, no-show).
 
 ## Planned architecture
 - Existing Cloudflare Pages site for front end, only after approval.
@@ -39,12 +39,12 @@ No table-combination rules are assumed.
 - Puerto Vallarta local date/time handling.
 - No real customer data or live bookings in this prototype.
 
-## Test setup (not performed)
+## Test setup and automated checks
 1. Create a dedicated D1 test database.
-2. Apply migrations in order: `0001_initial.sql`, then `0002_conflict_guards.sql`, then `0003_thursday_thali_limit.sql`.
+2. Apply migrations in order: `0001_initial.sql`, `0002_conflict_guards.sql`, `0003_guest_birthday.sql`, `0003_thursday_thali_limit.sql`, `0004_email_delivery.sql`, `0005_staff_login_throttle.sql`, and `0006_rebuild_conflict_guards.sql`.
 3. Bind D1 to a dedicated preview Worker, not the live site.
-4. Configure `ADMIN_TOKEN` as a Worker secret; never commit it.
-5. Test standard and 9:00 pm durations, booking conflicts, cancellation and staff operations using fictional records.
+4. Configure `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` as Worker secrets; never commit them. The isolated test Worker also has a public CI-only staff token, which must never be copied into production.
+5. CI verifies single-table allocation, standard and 9:00 pm durations, Thali limits, booking conflicts, cancellation/no-show/completion, phone bookings, walk-ins, and staff table reassignment using fictional records.
 6. Complete security and concurrency review before production.
 
 ## Safety requirements
