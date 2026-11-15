@@ -90,14 +90,14 @@ if(process.env.SMTP_TEST_BASE_URL){
 
 
 let c = await postBooking("C2", {time:"19:00",party:2,thali:0});
-assert(c.response.status===201 && c.data.duration_minutes===90, "standard 1–3 guest booking should be 90 minutes");
-console.log("PASS 1–3 guest standard seating: 90 minutes");
+assert(c.response.status===201 && c.data.duration_minutes===120, "1–3 guest booking should receive 120 minutes");
+console.log("PASS 1–8 guest standard seating: 120 minutes");
 
-let d = await postBooking("D2LATE", {time:"21:00",party:2,thali:0});
-assert(d.response.status===201 && d.data.duration_minutes===60, "9 pm 1–3 guest seating should be 60 minutes");
-let e = await postBooking("E4LATE", {time:"21:00",party:4,thali:0});
-assert(e.response.status===201 && e.data.duration_minutes===90, "9 pm 4–8 guest seating should be 90 minutes");
-console.log("PASS final 9 pm seating: 60 minutes for 1–3, 90 minutes for 4–8");
+let d = await postBooking("D2LAST", {time:"20:00",party:2,thali:0});
+assert(d.response.status===201 && d.data.duration_minutes===120 && d.data.end_time==="22:00", "last 8 pm arrival should receive 120 minutes and end at closing");
+let late = await postBooking("TOOLATE", {time:"20:30",party:2,thali:0});
+assert(late.response.status===400, "8:30 pm arrivals must be rejected to preserve 120-minute seating before closing");
+console.log("PASS last arrival is 8 pm; 120-minute seating ends at 10 pm");
 
 let closed = await postBooking("MONDAY", {date:monday,time:"17:00",party:2,thali:0});
 assert(closed.response.status===400, "Monday booking must be rejected");
