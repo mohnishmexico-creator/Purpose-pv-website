@@ -8,6 +8,7 @@ workers_dev = true
 binding = "DB"
 database_name = "purpose-reservations-production-db"
 database_id = "b0b4b77b-07bd-47a2-9e8e-c5e6ab749456"
+migrations_dir = "migrations"
 
 [assets]
 directory = "./public-production"
