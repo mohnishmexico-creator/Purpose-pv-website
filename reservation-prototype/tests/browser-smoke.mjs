@@ -13,7 +13,7 @@ try{
  if(await page.locator("#thaliField").isHidden()) throw new Error("Thursday Thali selector should be visible");
  await page.getByRole("button",{name:"Español"}).click();
  if(!(await page.locator("#guestTitle").innerText()).includes("Reservar")) throw new Error("Spanish guest UI did not switch");
- if(!(await page.locator("#thaliTitle").innerText()).includes("Jueves")) throw new Error("Spanish Thali labels did not switch");
+ const spanishThali=await page.locator("#thaliTitle").innerText();console.log("Observed Spanish Thali title: "+JSON.stringify(spanishThali));if(!spanishThali.includes("Jueves")) throw new Error("Spanish Thali labels did not switch: "+spanishThali);
  await page.getByRole("button",{name:"English"}).click();
  if(!(await page.locator("#thaliTitle").innerText()).includes("Thursday")) throw new Error("English Thali labels did not switch");
  await page.goto(base+"/staff",{waitUntil:"networkidle"});
