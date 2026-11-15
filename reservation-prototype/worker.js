@@ -191,11 +191,11 @@ async function verifyZohoSmtp(env){
   const decoder=new TextDecoder();let buffer="";
   async function reply(){
     while(true){
-      const end=buffer.search(/\\r?\\n/);
+      const end=buffer.search(/\r?\n/);
       if(end>=0){
         const line=buffer.slice(0,end);
-        buffer=buffer.slice(end+(buffer.slice(end).startsWith("\\r\\n")?2:1));
-        const match=line.match(/^(\\d{3})([ -])(.*)$/);
+        buffer=buffer.slice(end+(buffer.slice(end).startsWith("\r\n")?2:1));
+        const match=line.match(/^(\d{3})([ -])(.*)$/);
         if(match&&match[2]===" ")return Number(match[1]);
         continue;
       }
@@ -205,14 +205,14 @@ async function verifyZohoSmtp(env){
     }
   }
   async function command(line,expected){
-    await writer.write(new TextEncoder().encode(line+"\\r\\n"));
+    await writer.write(new TextEncoder().encode(line+"\r\n"));
     const status=await reply();
     if(!expected.includes(status))throw new Error("SMTP_COMMAND_FAILED_"+status);
   }
   try{
     if(await reply()!==220)throw new Error("SMTP_GREETING_FAILED");
     await command("EHLO purposepv.com",[250]);
-    await command("AUTH PLAIN "+base64Utf8("\\0"+username+"\\0"+env.ZOHO_SMTP_PASSWORD),[235]);
+    await command("AUTH PLAIN "+base64Utf8("\0"+username+"\0"+env.ZOHO_SMTP_PASSWORD),[235]);
     await command("QUIT",[221]);
     return {status:"authenticated"};
   }finally{
