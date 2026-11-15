@@ -109,6 +109,7 @@ function ownerNotificationEmail(r){
   return {subject:`New reservation · Purpose PV · ${r.confirmation_code}`,content};
 }
 async function sendZohoMail(env,recipient,mail){
+  if(env.SUPPRESS_EMAILS === "true") return {status:"suppressed"};
   if(!env.ZOHO_SMTP_PASSWORD) return {status:"not_configured"};
   const username=env.ZOHO_SMTP_USER||"info@purposepv.com";
   if(!username.includes("@") || !username.split("@")[1]?.includes(".") ||
@@ -377,8 +378,8 @@ export default {
       const guestSend=(async()=>{
         try{
           const mailResult=await sendZohoConfirmation(env,emailPayload);
-          const status=mailResult.status==="sent"?"sent":"failed";
-          const error=status==="sent"?null:"Zoho credentials are not configured";
+          const status=mailResult.status==="sent"?"sent":mailResult.status==="suppressed"?"not_requested":"failed";
+          const error=status==="sent"?null:status==="not_requested"?"Email delivery disabled in isolated test environment":"Zoho credentials are not configured";
           await env.DB.prepare("UPDATE reservations SET email_status=?,email_error=?,email_sent_at=CASE WHEN ?='sent' THEN CURRENT_TIMESTAMP ELSE email_sent_at END,updated_at=CURRENT_TIMESTAMP WHERE id=?")
             .bind(status,error,status,id).run();
         }catch(e){
@@ -395,7 +396,7 @@ export default {
     if(ctx?.waitUntil) ctx.waitUntil(sendAndRecord());
     else await sendAndRecord();
     return json({ok:true,confirmation_code:code,date:reservation_date,start_time,end_time:end.time,duration_minutes:duration,
-      thali_count:thaliCount,alacarte_count:party-thaliCount,email_status:"queued",
+      thali_count:thaliCount,alacarte_count:party-thaliCount,email_status:env.SUPPRESS_EMAILS==="true"?"not_requested":"queued",
       kitchen_last_order:"21:30",guest_note:language==="es"?"Última orden de cocina a las 9:30 pm.":"Last kitchen order at 9:30 pm."},201);
   }
   if(url.pathname.startsWith("/api/reservations/")&&req.method==="PATCH"){
