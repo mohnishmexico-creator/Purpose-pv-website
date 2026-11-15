@@ -29,6 +29,10 @@
 <div class="back"><a href="/" data-en="Home" data-es="Inicio">Home</a><a href="/menu" data-en="Menu" data-es="Menú">Menu</a></div>
 </main>
 <script>
-function setLanguage(lang){document.documentElement.lang=lang;document.querySelectorAll('[data-en]').forEach(el=>{const value=el.getAttribute('data-'+lang);if(value!==null)el.textContent=value});document.getElementById('lang-en').setAttribute('aria-pressed',lang==='en'?'true':'false');document.getElementById('lang-es').setAttribute('aria-pressed',lang==='es'?'true':'false')}
+let selectedLanguage='en';
+const reservationFrame=document.getElementById('reservationFrame');
+function syncReservationLanguage(){if(reservationFrame&&reservationFrame.contentWindow)reservationFrame.contentWindow.postMessage({type:'purpose-set-language',lang:selectedLanguage},new URL(reservationFrame.src).origin)}
+if(reservationFrame)reservationFrame.addEventListener('load',syncReservationLanguage);
+function setLanguage(lang){selectedLanguage=lang;document.documentElement.lang=lang;document.querySelectorAll('[data-en]').forEach(el=>{const value=el.getAttribute('data-'+lang);if(value!==null)el.textContent=value});document.getElementById('lang-en').setAttribute('aria-pressed',lang==='en'?'true':'false');document.getElementById('lang-es').setAttribute('aria-pressed',lang==='es'?'true':'false');syncReservationLanguage()}
 </script>
 </body></html>
