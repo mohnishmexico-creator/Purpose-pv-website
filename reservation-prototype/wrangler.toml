@@ -15,3 +15,4 @@ binding = "ASSETS"
 
 [vars]
 SUPPRESS_EMAILS = "true"
+TEST_ADMIN_TOKEN = "ci-only-test-token"
