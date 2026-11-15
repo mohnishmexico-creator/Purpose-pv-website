@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS dining_tables (
   staff_notes TEXT
 );
 
--- Owner-confirmed floor plan: 36 seats total.
+-- Configured floor plan: 36 seats total. Confirm each table's capacity with the owner before production launch.
 INSERT OR IGNORE INTO dining_tables (id, capacity, is_active) VALUES
   (1, 8, 1), (2, 4, 1), (3, 4, 1),
   (4, 2, 1), (5, 4, 1), (6, 2, 1),
