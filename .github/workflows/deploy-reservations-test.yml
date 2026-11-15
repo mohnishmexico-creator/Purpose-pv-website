@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out prototype branch
         uses: actions/checkout@v4
@@ -130,7 +130,7 @@ jobs:
           command: d1 execute purpose-reservations-test-db --remote --command "UPDATE reservations SET status='confirmed' WHERE id='ci-reactivate-a';"
 
       - name: Assert reactivation was blocked by the overlap trigger
-        if: always()
+        if: always() && steps.reactivation_attempt.outcome != 'skipped'
         run: |
           if [ "${{ steps.reactivation_attempt.outcome }}" != "failure" ]; then
             echo "Expected the D1 overlap trigger to reject reactivation."
@@ -144,7 +144,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "reservation-prototype"
-          command: d1 execute purpose-reservations-test-db --remote --command "CREATE TEMP TABLE ci_assertion (ok INTEGER CHECK(ok=1)); INSERT INTO ci_assertion SELECT CASE WHEN (SELECT status FROM reservations WHERE id='ci-reactivate-a')='cancelled' THEN 1 ELSE 0 END; DROP TABLE ci_assertion;"
+          command: d1 execute purpose-reservations-test-db --remote --command "CREATE TABLE IF NOT EXISTS ci_assertion (ok INTEGER CHECK(ok=1)); DELETE FROM ci_assertion; INSERT INTO ci_assertion SELECT CASE WHEN (SELECT status FROM reservations WHERE id='ci-reactivate-a')='cancelled' THEN 1 ELSE 0 END; DROP TABLE ci_assertion;"
 
       - name: Final cleanup and verify dining tables are preserved
         if: always()
@@ -153,4 +153,4 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "reservation-prototype"
-          command: d1 execute purpose-reservations-test-db --remote --command "DELETE FROM reservation_tables WHERE reservation_id IN (SELECT id FROM reservations WHERE guest_name LIKE 'CI TEST %') OR reservation_id IN ('ci-reactivate-a','ci-reactivate-b'); DELETE FROM reservations WHERE guest_name LIKE 'CI TEST %' OR id IN ('ci-reactivate-a','ci-reactivate-b'); DELETE FROM staff_login_attempts; CREATE TEMP TABLE ci_assertion (ok INTEGER CHECK(ok=1)); INSERT INTO ci_assertion SELECT CASE WHEN (SELECT COUNT(*) FROM dining_tables)=9 AND (SELECT COUNT(*) FROM reservations)=0 AND (SELECT COUNT(*) FROM reservation_tables)=0 THEN 1 ELSE 0 END; DROP TABLE ci_assertion;"
+          command: d1 execute purpose-reservations-test-db --remote --command "DELETE FROM reservation_tables WHERE reservation_id IN (SELECT id FROM reservations WHERE guest_name LIKE 'CI TEST %') OR reservation_id IN ('ci-reactivate-a','ci-reactivate-b'); DELETE FROM reservations WHERE guest_name LIKE 'CI TEST %' OR id IN ('ci-reactivate-a','ci-reactivate-b'); DELETE FROM staff_login_attempts; CREATE TABLE IF NOT EXISTS ci_assertion (ok INTEGER CHECK(ok=1)); DELETE FROM ci_assertion; INSERT INTO ci_assertion SELECT CASE WHEN (SELECT COUNT(*) FROM dining_tables)=9 AND (SELECT COUNT(*) FROM reservations)=0 AND (SELECT COUNT(*) FROM reservation_tables)=0 THEN 1 ELSE 0 END; DROP TABLE ci_assertion;"
