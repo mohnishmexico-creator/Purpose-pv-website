@@ -84,6 +84,10 @@ jobs:
           if (session.authenticated !== false) throw new Error("Unauthenticated session should not be authenticated");
           await check("/api/admin/reservations?date=" + thursday, 401, "staff reservations API rejects unauthenticated access");
           await check("/api/tables", 401, "table API rejects unauthenticated access");
+          const phoneUnauthorized = await fetch(base + "/api/admin/reservations", {method:"POST",headers:{"content-type":"application/json","origin":base},body:JSON.stringify({})});
+          if (phoneUnauthorized.status !== 401) throw new Error("Phone reservation creation must require staff authentication");
+          const walkinUnauthorized = await fetch(base + "/api/admin/walkins", {method:"POST",headers:{"content-type":"application/json","origin":base},body:JSON.stringify({})});
+          if (walkinUnauthorized.status !== 401) throw new Error("Walk-in creation must require staff authentication");
           const badOrigin = await fetch(base + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":"https://example.invalid"},body:JSON.stringify({password:"invalid-ci-probe"})});
           if (badOrigin.status !== 403) throw new Error("Login must reject cross-origin requests");
           const loginProbe = await fetch(base + "/api/admin/login", {method:"POST",headers:{"content-type":"application/json","origin":base},body:JSON.stringify({password:"invalid-ci-probe"})});
