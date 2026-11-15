@@ -45,3 +45,29 @@ jobs:
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "reservation-prototype"
           command: deploy
+
+      - name: Run read-only HTTP smoke tests against isolated test Worker
+        env:
+          TEST_BASE_URL: https://purpose-reservations-test.mohnishmexico.workers.dev
+        run: |
+          node --input-type=module <<'NODE'
+          const base = process.env.TEST_BASE_URL;
+          async function check(path, expected, label) {
+            const response = await fetch(base + path);
+            const body = await response.json().catch(() => ({}));
+            if (response.status !== expected) {
+              throw new Error(`${label}: expected HTTP ${expected}, received ${response.status}: ${JSON.stringify(body)}`);
+            }
+            console.log(`PASS ${label}: HTTP ${response.status}`);
+            return body;
+          }
+          const health = await check("/api/health", 200, "health endpoint");
+          if (!health.ok || health.mode !== "private-prototype") throw new Error("Health payload mismatch");
+          const availability = await check("/api/availability?date=2026-11-19&party_size=2&thali_count=2", 200, "Thursday Thali availability");
+          if (availability.thali_hourly_limit !== 12 || !Array.isArray(availability.available_times)) throw new Error("Availability payload mismatch");
+          const staff = await fetch(base + "/staff");
+          if (!staff.ok || !(await staff.text()).includes("Purpose")) throw new Error("Staff page did not load correctly");
+          console.log("PASS staff page: HTTP " + staff.status);
+          await check("/api/admin/reservations?date=2026-11-19", 401, "staff API rejects unauthenticated access");
+          console.log("All read-only HTTP smoke tests passed.");
+          NODE
