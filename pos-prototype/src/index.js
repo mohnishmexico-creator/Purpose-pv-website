@@ -22,7 +22,7 @@ function safeOrder(body) {
   if (!body || !Array.isArray(body.items) || !body.items.length) throw new Error("An order must contain at least one item.");
   const allowed = ["Dine-in", "Takeout", "Uber Eats"];
   if (!allowed.includes(body.orderType)) throw new Error("Invalid order type.");
-  if (body.orderType === "Dine-in" && !Number.isInteger(Number(body.tableNumber))) throw new Error("A table is required for dine-in.");
+  if (body.orderType === "Dine-in" && (!Number.isInteger(Number(body.tableNumber)) || Number(body.tableNumber) < 1 || Number(body.tableNumber) > 9)) throw new Error("Choose a valid table (1–9) for dine-in.");
   const items = body.items.map(x => {
     const quantity = Number(x.quantity), price = Number(x.unitPrice);
     if (!x.name || !["FOOD", "BAR"].includes(x.type) || !Number.isInteger(quantity) || quantity < 1 || quantity > 99 || !Number.isInteger(price) || price < 0 || price > 100000) throw new Error("Invalid order item.");
@@ -60,6 +60,13 @@ export default {
     if (url.pathname === "/api/orders" && request.method === "GET") {
       const rows = await env.DB.prepare("SELECT id,order_number,order_type,table_number,customer_reference,waiter_name,status,subtotal_mxn,created_at FROM orders ORDER BY created_at DESC LIMIT 100").all();
       return json({ orders: rows.results || [] });
+    }
+    const detailMatch = url.pathname.match(/^\\/api\\/orders\\/([0-9a-f-]+)$/i);
+    if (detailMatch && request.method === "GET") {
+      const order = await env.DB.prepare("SELECT * FROM orders WHERE id=?").bind(detailMatch[1]).first();
+      if (!order) return json({ error: "Order not found." }, 404);
+      const items = await env.DB.prepare("SELECT id,item_type,item_name,quantity,unit_price_mxn,modifiers,special_instructions FROM order_items WHERE order_id=? ORDER BY id").bind(detailMatch[1]).all();
+      return json({ order, items: items.results || [] });
     }
     const statusMatch = url.pathname.match(/^\/api\/orders\/([0-9a-f-]+)\/status$/i);
     if (statusMatch && request.method === "PATCH") {
