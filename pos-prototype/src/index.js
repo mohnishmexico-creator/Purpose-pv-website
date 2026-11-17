@@ -61,19 +61,31 @@ export default {
       const rows = await env.DB.prepare("SELECT id,order_number,order_type,table_number,customer_reference,waiter_name,status,subtotal_mxn,created_at FROM orders ORDER BY created_at DESC LIMIT 100").all();
       return json({ orders: rows.results || [] });
     }
-    const detailMatch = url.pathname.match(/^\\/api\\/orders\\/([0-9a-f-]+)$/i);
+    const detailMatch = url.pathname.match(/^\/api\/orders\/([0-9a-f-]+)$/i);
     if (detailMatch && request.method === "GET") {
       const order = await env.DB.prepare("SELECT * FROM orders WHERE id=?").bind(detailMatch[1]).first();
       if (!order) return json({ error: "Order not found." }, 404);
       const items = await env.DB.prepare("SELECT id,item_type,item_name,quantity,unit_price_mxn,modifiers,special_instructions FROM order_items WHERE order_id=? ORDER BY id").bind(detailMatch[1]).all();
       return json({ order, items: items.results || [] });
     }
+    const paymentMatch = url.pathname.match(/^\/api\/orders\/([0-9a-f-]+)\/payment$/i);
+    if (paymentMatch && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      if (!["cash", "card", "other"].includes(body.method)) return json({ error: "Choose cash, card or other." }, 400);
+      const existing = await env.DB.prepare("SELECT status FROM orders WHERE id=?").bind(paymentMatch[1]).first();
+      if (!existing) return json({ error: "Order not found." }, 404);
+      if (existing.status === "void") return json({ error: "Voided orders cannot be paid." }, 409);
+      if (existing.status === "paid") return json({ error: "Order is already paid." }, 409);
+      const result = await env.DB.prepare("UPDATE orders SET status='paid',payment_method=?,updated_at=datetime('now') WHERE id=? AND status NOT IN ('paid','void')").bind(body.method,paymentMatch[1]).run();
+      return result.meta.changes ? json({ ok: true, status: "paid", paymentMethod: body.method }) : json({ error: "Payment could not be recorded." }, 409);
+    }
     const statusMatch = url.pathname.match(/^\/api\/orders\/([0-9a-f-]+)\/status$/i);
     if (statusMatch && request.method === "PATCH") {
       const body = await request.json().catch(() => ({}));
       const allowed = ["new","preparing","ready","collected","paid","void"];
       if (!allowed.includes(body.status)) return json({ error: "Invalid status." }, 400);
-      const result = await env.DB.prepare("UPDATE orders SET status=?,updated_at=datetime('now') WHERE id=?").bind(body.status,statusMatch[1]).run();
+      if (body.status === "paid") return json({ error: "Use the payment action to record a paid order." }, 400);
+      const result = await env.DB.prepare("UPDATE orders SET status=?,updated_at=datetime('now') WHERE id=? AND status NOT IN (\'paid\',\'void\')").bind(body.status,statusMatch[1]).run();
       return result.meta.changes ? json({ ok: true }) : json({ error: "Order not found." }, 404);
     }
     return json({ error: "Not found." }, 404);
