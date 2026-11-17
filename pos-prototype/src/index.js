@@ -58,7 +58,7 @@ export default {
       return json({ ok: true, id, orderNumber, subtotalMxn: safe.subtotal }, 201);
     }
     if (url.pathname === "/api/orders" && request.method === "GET") {
-      const rows = await env.DB.prepare("SELECT id,order_number,order_type,table_number,customer_reference,waiter_name,status,subtotal_mxn,created_at FROM orders ORDER BY created_at DESC LIMIT 100").all();
+      const rows = await env.DB.prepare("SELECT id,order_number,order_type,table_number,customer_reference,waiter_name,status,subtotal_mxn,payment_method,created_at FROM orders ORDER BY created_at DESC LIMIT 100").all();
       return json({ orders: rows.results || [] });
     }
     const detailMatch = url.pathname.match(/^\/api\/orders\/([0-9a-f-]+)$/i);
