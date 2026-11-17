@@ -37,8 +37,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: "2541ff27a2bb36f951d9b3c6fbc0045a"
         run: |
           set -euo pipefail
-          DB_LIST="$(wrangler d1 list)"
-          DB_ID="$(printf '%s\n' "$DB_LIST" | grep -F 'purpose-pos-test-db' | grep -Eo '[0-9a-fA-F-]{36}' | head -n1 || true)"
+          DB_ID="$(wrangler d1 list --json | jq -r '.[] | select(.name == "purpose-pos-test-db") | .uuid' | head -n1)"
           if [ -z "$DB_ID" ]; then
             CREATE_OUTPUT="$(wrangler d1 create purpose-pos-test-db)"
             DB_ID="$(printf '%s\n' "$CREATE_OUTPUT" | grep -Eo '[0-9a-fA-F-]{36}' | head -n1 || true)"
@@ -60,3 +59,9 @@ jobs:
           accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
           workingDirectory: "pos-prototype"
           command: deploy
+
+      - name: Deployment diagnostics
+        if: always()
+        run: |
+          echo "POS deployment job: ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "This is an isolated test Worker. Check Wrangler deployment output for the assigned workers.dev URL." >> "$GITHUB_STEP_SUMMARY"
