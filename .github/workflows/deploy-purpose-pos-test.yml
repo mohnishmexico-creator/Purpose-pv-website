@@ -37,7 +37,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: "2541ff27a2bb36f951d9b3c6fbc0045a"
         run: |
           set -euo pipefail
-          DB_ID="$(wrangler d1 list --json | jq -r '.[] | select(.name == "purpose-pos-test-db") | .uuid' | head -n1)"
+          DB_ID="$(wrangler d1 list --json | jq -r '(.[]? | select(.name == "purpose-pos-test-db") | .uuid) // empty' | head -n1)"
           if [ -z "$DB_ID" ]; then
             CREATE_OUTPUT="$(wrangler d1 create purpose-pos-test-db)"
             DB_ID="$(printf '%s\n' "$CREATE_OUTPUT" | grep -Eo '[0-9a-fA-F-]{36}' | head -n1 || true)"
@@ -45,7 +45,7 @@ jobs:
           test -n "$DB_ID"
           test "$DB_ID" != "null"
           sed -i "s/SET_BY_DEPLOY_WORKFLOW/$DB_ID/" wrangler.toml
-          echo "D1 database ready"
+          echo "D1 database ready: $DB_ID"
       - name: Apply database migrations
         working-directory: pos-prototype
         env:
@@ -66,7 +66,8 @@ jobs:
             exit 1
           fi
           echo "Prototype URL: $URL" >> "$GITHUB_STEP_SUMMARY"
-          curl --fail --show-error --silent --retry 3 --retry-delay 3 "$URL/health" | tee /tmp/purpose-pos-health.json
+          echo "::notice title=Purpose POS URL::$URL"
+          curl --fail --show-error --silent --retry 5 --retry-delay 5 "$URL/health" | tee /tmp/purpose-pos-health.json
           grep -q '"ok":true' /tmp/purpose-pos-health.json
           echo "Health check passed" >> "$GITHUB_STEP_SUMMARY"
       - name: Deployment diagnostics
