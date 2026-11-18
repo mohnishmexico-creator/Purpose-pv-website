@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           wrangler deploy 2>&1 | tee /tmp/purpose-pos-deploy.log
-          URL="$(grep -Eo 'https://[^[:space:]]+\\.workers\\.dev' /tmp/purpose-pos-deploy.log | tail -n1 || true)"
+          URL="$(grep -Eo 'https://[^[:space:]]+[.]workers[.]dev' /tmp/purpose-pos-deploy.log | tail -n1 || true)"
           if [ -z "$URL" ]; then
             echo "::error::Wrangler did not report a workers.dev URL. Check account subdomain and workers_dev settings."
             exit 1
