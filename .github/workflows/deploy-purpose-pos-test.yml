@@ -52,14 +52,23 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "2541ff27a2bb36f951d9b3c6fbc0045a"
         run: wrangler d1 execute purpose-pos-test-db --remote --file=./migrations/0001_initial.sql
-      - name: Deploy isolated POS Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: "2541ff27a2bb36f951d9b3c6fbc0045a"
-          workingDirectory: "pos-prototype"
-          command: deploy
-
+      - name: Deploy and verify isolated POS Worker
+        working-directory: pos-prototype
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "2541ff27a2bb36f951d9b3c6fbc0045a"
+        run: |
+          set -euo pipefail
+          wrangler deploy 2>&1 | tee /tmp/purpose-pos-deploy.log
+          URL="$(grep -Eo 'https://[^[:space:]]+\\.workers\\.dev' /tmp/purpose-pos-deploy.log | tail -n1 || true)"
+          if [ -z "$URL" ]; then
+            echo "::error::Wrangler did not report a workers.dev URL. Check account subdomain and workers_dev settings."
+            exit 1
+          fi
+          echo "Prototype URL: $URL" >> "$GITHUB_STEP_SUMMARY"
+          curl --fail --show-error --silent --retry 3 --retry-delay 3 "$URL/health" | tee /tmp/purpose-pos-health.json
+          grep -q '"ok":true' /tmp/purpose-pos-health.json
+          echo "Health check passed" >> "$GITHUB_STEP_SUMMARY"
       - name: Deployment diagnostics
         if: always()
         run: |
