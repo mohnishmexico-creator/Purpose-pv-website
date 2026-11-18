@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "Purpose PV POS",
+  "short_name": "Purpose POS",
+  "description": "Purpose PV restaurant point of sale",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f1e8",
+  "theme_color": "#292923",
+  "icons": [
+    {
+      "src": "/purpose-pos-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
