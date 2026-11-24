@@ -86,6 +86,8 @@ document.getElementById('bookingForm').addEventListener('submit',async e=>{
  const thaliCount=d&&new Date(d+'T12:00:00').getDay()===4?Number(document.getElementById('thaliCount').value||0):0;
  if(!d||!n||!ph||!email||!document.getElementById('email').checkValidity()){alert(t('invalid'));return}
  if(thaliCount>0&&new Date(d+'T12:00:00').getDay()!==4){alert('Thali is available Thursdays only.');return}
+ if(btn.disabled)return;
+ let booked=false;
  btn.disabled=true;btn.textContent=lang==='es'?'Enviando…':'Submitting…';
  result.style.display='block';result.textContent=lang==='es'?'Comprobando disponibilidad…':'Checking availability…';
  try{
@@ -103,11 +105,12 @@ document.getElementById('bookingForm').addEventListener('submit',async e=>{
   const emailText=data.email_status==='sent'?(lang==='es'?'Correo de confirmación enviado.':'Confirmation email sent.')
    :data.email_status==='queued'?(lang==='es'?'El correo de confirmación se está enviando.':'Confirmation email is being sent.')
    :(lang==='es'?'Estado del correo: '+data.email_status+'.':'Email status: '+data.email_status+'.');
-  result.innerHTML='<strong>'+(lang==='es'?'Reservación guardada':'Reservation saved')+'</strong><br>'+
+  result.innerHTML='<strong>'+(lang==='es'?'¡Reservación confirmada!':'Reservation confirmed!')+'</strong><br>'+
    (lang==='es'?'Código de confirmación: ':'Confirmation code: ')+data.confirmation_code+'<br>'+
-   d+' · '+tm+' · '+p+' '+(lang==='es'?'personas':'guests')+'<br>'+emailText;
+   d+' · '+tm+' · '+p+' '+(lang==='es'?'personas':'guests')+'<br>'+emailText+'<br>'+(lang==='es'?'Guarda tu código. Si no recibes el correo, revisa tu carpeta de correo no deseado. No necesitas reservar otra vez.':'Save your code. If the email does not arrive, check your spam folder. You do not need to book again.');
+  booked=true;
  }catch(err){result.textContent=err.message||'Could not complete reservation.'}
- finally{btn.disabled=false;btn.textContent=t('submit')}
+ finally{btn.disabled=booked;btn.textContent=booked?(lang==='es'?'Reservación confirmada':'Reservation confirmed'):t('submit')}
 });
 function pvToday(){return pvClock().date}document.getElementById('date').min=pvToday();setLang('en');updateThaliField();updatePastSlots();
 </script>
