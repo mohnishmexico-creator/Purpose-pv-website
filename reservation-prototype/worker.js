@@ -175,6 +175,9 @@ async function sendZohoMail(env,recipient,mail){
       "From: Purpose PV <"+username+">",
       "To: <"+recipient+">",
       "Subject: "+subject,
+      "Date: "+new Date().toUTCString(),
+      "Message-ID: <"+crypto.randomUUID()+"@"+username.split("@")[1]+">",
+      "Reply-To: <"+username+">",
       "MIME-Version: 1.0",
       "Content-Type: text/html; charset=UTF-8",
       "Content-Transfer-Encoding: base64",
@@ -486,6 +489,9 @@ export default {
        !Number.isInteger(thaliCount)||thaliCount<0||thaliCount>party||
        !validDate(reservation_date)||isBeyondBookingWindow(reservation_date,pvToday(),28)||!validTime(start_time)||isPastArrival(reservation_date,start_time)||!validBirthday(birthday)||!["en","es"].includes(language)||String(special_requests||"").length>1000)
       return json({error:"Please provide valid guest details and choose a date within the next 4 weeks, a valid time and a party size (1–8)."},400);
+    const normalizedPhone=phone.replace(/[^0-9]/g,"");
+    const duplicate=await env.DB.prepare(`SELECT 1 AS found FROM reservations WHERE reservation_date=? AND start_time=? AND status IN ('requested','confirmed','seated') AND (lower(trim(email))=lower(trim(?)) OR (length(?)>=7 AND replace(replace(replace(replace(replace(replace(phone,' ',''),'-',''),'(',''),')',''),'+',''),'.','')=?)) LIMIT 1`).bind(reservation_date,start_time,email,normalizedPhone,normalizedPhone).first();
+    if(duplicate)return json({code:"POSSIBLE_DUPLICATE",error:language==="es"?"Es posible que ya tengas una reservación. Revisa tu correo no deseado o contacta a Purpose para confirmar o reservar otra mesa.":"You may already have a reservation. Check your spam folder or contact Purpose to confirm or book another table."},409);
     const weekday=weekdayForDate(reservation_date);
     if(weekday===1) return json({error:"Purpose is closed on Mondays."},400);
     if(thaliCount>0&&weekday!==4) return json({error:"Thali reservations are available on Thursdays only."},400);
