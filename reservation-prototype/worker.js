@@ -565,7 +565,7 @@ export default {
     if(body.status!==undefined&&!allowed.includes(body.status)) return json({error:"Invalid status."},400);
     if(body.internal_notes!==undefined && String(body.internal_notes).length>2000)
       return json({error:"Internal notes must be 2,000 characters or fewer."},400);
-    const current=await env.DB.prepare("SELECT id,party_size,status,reservation_date,start_time,duration_minutes FROM reservations WHERE id=?").bind(id).first();
+    const current=await env.DB.prepare("SELECT id,party_size,thali_count,status,reservation_date,start_time,duration_minutes FROM reservations WHERE id=?").bind(id).first();
     if(!current) return json({error:"Reservation not found."},404);
     const statements=[];
     if(body.status!==undefined)
@@ -574,17 +574,21 @@ export default {
       statements.push(env.DB.prepare("UPDATE reservations SET internal_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(String(body.internal_notes),id));
     if(body.status==="cancelled"){
       statements.push(env.DB.prepare("DELETE FROM reservation_tables WHERE reservation_id=?").bind(id));
-    }else if(body.start_time!==undefined && body.start_time!==current.start_time){
-      const time=body.start_time,date=current.reservation_date;
+    }else if((body.start_time!==undefined && body.start_time!==current.start_time)||(body.party_size!==undefined && body.party_size!==current.party_size)||(body.thali_count!==undefined && body.thali_count!==current.thali_count)){
+      const time=body.start_time??current.start_time,date=current.reservation_date;
+      const party=body.party_size??current.party_size,thali=body.thali_count??current.thali_count;
+      if(!Number.isInteger(party)||party<1||party>8||!Number.isInteger(thali)||thali<0||thali>party||(thali>0&&weekdayForDate(date)!==4))return json({error:"Invalid guest or Thali count."},400);
+      const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE id<>? AND reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(id,date,time.slice(0,2)).first();
+      if(exceedsThaliLimit(used?.used||0,thali))return json({error:"Thali hourly limit exceeded."},409);
       if(!validTime(time)||!isArrivalTime(time)||isPastArrival(date,time))return json({error:"Choose a valid future arrival time."},400);
-      const duration=seatingDuration(current.party_size,time),end=addMinutes(date,time,duration);
+      const duration=seatingDuration(party,time),end=addMinutes(date,time,duration);
       if(end.date!==date||end.time>"22:00"||isPrivateEventBlocked(date,time,end.date,end.time))return json({error:"Choose an available arrival time."},409);
       const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
       const occupied=await env.DB.prepare(`SELECT rt.table_id,r.reservation_date,r.start_time,r.end_date,r.end_time,r.status FROM reservations r JOIN reservation_tables rt ON rt.reservation_id=r.id WHERE r.id<>? AND r.status IN ('requested','confirmed','seated') AND r.reservation_date<=? AND r.end_date>=?`).bind(id,end.date,date).all();
-      const chosen=chooseTables(tables.results,occupied.results,date,time,end.date,end.time,current.party_size);
+      const chosen=chooseTables(tables.results,occupied.results,date,time,end.date,end.time,party);
       if(!chosen)return json({error:"No table available at the new time."},409);
       statements.push(env.DB.prepare("DELETE FROM reservation_tables WHERE reservation_id=?").bind(id));
-      statements.push(env.DB.prepare("UPDATE reservations SET start_time=?,duration_minutes=?,end_date=?,end_time=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(time,duration,end.date,end.time,id));
+      statements.push(env.DB.prepare("UPDATE reservations SET start_time=?,duration_minutes=?,end_date=?,end_time=?,party_size=?,thali_count=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(time,duration,end.date,end.time,party,thali,id));
       for(const tableId of chosen)statements.push(env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId));
     }else if(body.table_ids!==undefined){
       const activeTables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1").all();
