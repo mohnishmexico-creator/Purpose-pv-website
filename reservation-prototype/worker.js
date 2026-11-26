@@ -363,6 +363,7 @@ export default {
       ]);
     }catch(e){
       const detail=String(e?.message||e||"");
+      if(detail.includes("RESERVATION_BLOCKED"))return json({error:"Reservations are blocked during this period."},409);
       if(detail.includes("TABLE_TIME_CONFLICT"))return json({error:"That table was just booked. Please choose another time."},409);
       if(detail.includes("THALI_HOURLY_LIMIT"))return json({error:"Only 12 Thali guests are available in this hour."},409);
       console.error("Phone reservation save failed:",e);
@@ -445,6 +446,26 @@ export default {
     }
     return json({ok:true,message:"Walk-in added and marked seated."},201);
   }
+  if(url.pathname==="/api/admin/blocks"){
+    if(!await isAdmin(req,env))return json({error:"Unauthorized"},401);
+    if(req.method==="GET"){
+      const rows=await env.DB.prepare("SELECT id,reservation_date,start_time,end_time FROM reservation_blocks WHERE reservation_date>=? ORDER BY reservation_date,start_time").bind(pvToday()).all();
+      return json({blocks:rows.results});
+    }
+    if(!sameOrigin(req))return json({error:"Invalid origin."},403);
+    let b;try{b=await req.json()}catch{return json({error:"Invalid JSON."},400)}
+    if(req.method==="POST"){
+      const date=b.reservation_date,start=b.all_day?"00:00":b.start_time,end=b.all_day?"24:00":b.end_time;
+      if(!validDate(date)||date<pvToday()||!validTime(start)||!(end==="24:00"||validTime(end))||start>=end)return json({error:"Choose a valid date and time range."},400);
+      await env.DB.prepare("INSERT INTO reservation_blocks (id,reservation_date,start_time,end_time) VALUES (?,?,?,?)").bind(crypto.randomUUID(),date,start,end).run();
+      return json({ok:true},201);
+    }
+    if(req.method==="DELETE"){
+      await env.DB.prepare("DELETE FROM reservation_blocks WHERE id=?").bind(String(b.id||"")).run();
+      return json({ok:true});
+    }
+    return json({error:"Method not allowed"},405);
+  }
   if(url.pathname==="/api/availability" && req.method==="GET"){
     const date=url.searchParams.get("date"),party=Number(url.searchParams.get("party_size"));
     const thaliCount=Number(url.searchParams.get("thali_count")||0);
@@ -467,6 +488,7 @@ export default {
       const duration=seatingDuration(party,t),end=addMinutes(date,t,duration);
       if(end.date!==date || end.time>"22:00") continue;
       if(isPrivateEventBlocked(date,t,end.date,end.time)) continue;
+      if(await env.DB.prepare("SELECT 1 FROM reservation_blocks WHERE reservation_date=? AND start_time<? AND end_time>? LIMIT 1").bind(date,end.time,t).first())continue;
       if(!chooseTables(tables.results,all,date,t,end.date,end.time,party)) continue;
       if(isThursday&&thaliCount>0){
         const hour=t.slice(0,2);
@@ -519,6 +541,7 @@ export default {
         ...tableIds.map(tableId=>env.DB.prepare("INSERT INTO reservation_tables (reservation_id,table_id) VALUES (?,?)").bind(id,tableId))
       ]);
     }catch(e){
+      if(String(e).includes("RESERVATION_BLOCKED"))return json({error:"Reservations are blocked during this period."},409);
       if(String(e).includes("TABLE_TIME_CONFLICT")) return json({error:"That table was just booked. Please choose another time."},409);
       if(String(e).includes("THALI_HOURLY_LIMIT")) return json({error:"Only 12 Thali guests are available in this hour. Please choose another hour or reduce the Thali count."},409);
       return json({error:"Booking could not be saved. Please try again."},500);
@@ -605,6 +628,7 @@ export default {
     try{
       if(statements.length) await env.DB.batch(statements);
     }catch(e){
+      if(String(e).includes("RESERVATION_BLOCKED"))return json({error:"Reservations are blocked during this period."},409);
       if(String(e).includes("TABLE_TIME_CONFLICT")) return json({error:"That table is already assigned to an overlapping reservation."},409);
       if(String(e).includes("THALI_HOURLY_LIMIT")) return json({error:"This change would exceed the 12 Thali guests per hour limit."},409);
       throw e;
