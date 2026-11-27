@@ -1,0 +1,53 @@
+name: Upgrade live reservation system
+on:
+  workflow_dispatch:
+  push:
+    branches: [reservation-deliverability-fix]
+    paths: [reservation-prototype/live-upgrade.trigger]
+permissions:
+  contents: read
+concurrency:
+  group: purpose-reservations-production-promotion
+  cancel-in-progress: false
+jobs:
+  upgrade:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: reservation-prototype
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: "2541ff27a2bb36f951d9b3c6fbc0045a"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate code
+        run: |
+          node --check worker.js
+          node --test tests/*.test.mjs
+          node --input-type=module -e 'import fs from "node:fs"; for(const p of ["public-production/staff.html","public-production/index.html"]){for(const m of fs.readFileSync(p,"utf8").matchAll(/<script>([\s\S]*?)<\/script>/g))new Function(m[1]);}'
+          npx --yes wrangler@4 deploy --dry-run --config wrangler.production.toml
+      - name: Verify live mode and capture recovery information
+        run: |
+          node --input-type=module -e 'const r=await fetch("https://purpose-reservations-test.mohnishmexico.workers.dev/api/health");const d=await r.json();if(!r.ok||!d.ok||d.mode!=="production")throw Error("Live mode mismatch");'
+          npx --yes wrangler@4 deployments list --config wrangler.production.toml
+          npx --yes wrangler@4 d1 time-travel info purpose-reservations-production-db --config wrangler.production.toml
+          npx --yes wrangler@4 d1 execute purpose-reservations-production-db --remote --config wrangler.production.toml --command "SELECT COUNT(*) AS reservations FROM reservations; SELECT COUNT(*) AS tables FROM dining_tables;"
+      - name: Apply additive migration to existing production database
+        run: npx --yes wrangler@4 d1 execute purpose-reservations-production-db --remote --config wrangler.production.toml --file migrations/0007_reservation_blocks.sql
+      - name: Deploy to existing production Worker
+        run: npx --yes wrangler@4 deploy --config wrangler.production.toml
+      - name: Verify live endpoints without bookings or emails
+        run: |
+          node --input-type=module <<'NODE'
+          const base="https://purpose-reservations-test.mohnishmexico.workers.dev";
+          const staff=await fetch(base+"/staff");
+          if(!staff.ok||!(await staff.text()).includes("Reservation blocks"))throw Error("Staff controls not deployed");
+          const blocks=await fetch(base+"/api/admin/blocks");
+          if(blocks.status!==401)throw Error("Block endpoint authentication failed");
+          const date=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
+          const a=await fetch(base+"/api/availability?date="+date+"&party_size=2");
+          if(!a.ok||!Array.isArray((await a.json()).available_times))throw Error("Availability failed");
+          NODE
