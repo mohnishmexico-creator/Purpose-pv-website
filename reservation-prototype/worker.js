@@ -601,9 +601,10 @@ export default {
       const time=body.start_time??current.start_time,date=current.reservation_date;
       const party=body.party_size??current.party_size,thali=body.thali_count??current.thali_count;
       if(!Number.isInteger(party)||party<1||party>8||!Number.isInteger(thali)||thali<0||thali>party||(thali>0&&weekdayForDate(date)!==4))return json({error:"Invalid guest or Thali count."},400);
+      if(!validTime(time)||!isArrivalTime(time)||isPastArrival(date,time))return json({error:"Choose a valid future arrival time."},400);
       const used=await env.DB.prepare("SELECT COALESCE(SUM(thali_count),0) AS used FROM reservations WHERE id<>? AND reservation_date=? AND substr(start_time,1,2)=? AND status IN ('requested','confirmed','seated')").bind(id,date,time.slice(0,2)).first();
       if(exceedsThaliLimit(used?.used||0,thali))return json({error:"Thali hourly limit exceeded."},409);
-      if(!validTime(time)||!isArrivalTime(time)||isPastArrival(date,time))return json({error:"Choose a valid future arrival time."},400);
+
       const duration=seatingDuration(party,time),end=addMinutes(date,time,duration);
       if(end.date!==date||end.time>"22:00"||isPrivateEventBlocked(date,time,end.date,end.time))return json({error:"Choose an available arrival time."},409);
       const tables=await env.DB.prepare("SELECT id,capacity FROM dining_tables WHERE is_active=1 ORDER BY id").all();
